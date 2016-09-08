@@ -60,14 +60,18 @@ class Footy(object):
                     team = team.encode('utf-8').strip()
                     match_date = "{date} {time}".format(date=self.__convert_dutch_month_to_english(date),
                                                         time=time.upper())
-                    date_obj = datetime.strptime(match_date, '%B %d, %Y %I:%M %p')
-                    amsterdam = pytz.timezone('Europe/Amsterdam')
-                    date_ams = amsterdam.localize(date_obj)
-                    season_matches['date'] = date_ams
+                    season_matches['date'] = self.__convert_date(match_date)
                     season_matches['match'] = team.replace('\xe2\x80\x93', '-')
                     self.season.append(season_matches)
 
         return self.season
+
+    @staticmethod
+    def __convert_date(match_date):
+        date_obj = datetime.strptime(match_date, '%B %d, %Y %I:%M %p')
+        amsterdam = pytz.timezone('Europe/Amsterdam')
+        date_ams = amsterdam.localize(date_obj)
+        return date_ams
 
     @staticmethod
     def __convert_dutch_month_to_english(month):
@@ -102,19 +106,13 @@ class FootyCalendar(object):
         self.season = season
         self.c = Calendar()
 
-    def generate_calendar_file(self):
+    def generate_calendar_file(self, path):
         for match in self.season:
             e = Event(duration={"hours": 1})
             e.name = match['match']
             e.begin = match['date']
             self.c.events.append(e)
 
-        with open('/Users/oriolfb/season.ics', 'w') as file:
+        with open(path, 'w') as file:
             file.writelines(self.c)
         return True
-
-if __name__ == '__main__':
-    logging.basicConfig(level='DEBUG')
-    footy = Footy('div2', '6wed', 'Hangover')
-    calendar = FootyCalendar(footy.season).generate_calendar_file()
-
