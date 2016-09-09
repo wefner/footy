@@ -5,6 +5,7 @@ import requests
 import logging
 import re
 import pytz
+from footyExceptions import *
 from bs4 import BeautifulSoup as bfs
 from datetime import datetime, timedelta
 from ics import Calendar, Event
@@ -30,6 +31,7 @@ class Footy(object):
         self.division = self.__get_match_plan(division)
         self.day = self.__get_day_page(day)
         self.team = team
+        self.timezone = 'Europe/Amsterdam'
         self.season = []
         self._get_match_page()
 
@@ -117,41 +119,43 @@ class Footy(object):
                     team = team.encode('utf-8').strip()
                     match_date = "{date} {time}".format(date=self.__convert_dutch_month_to_english(date),
                                                         time=time.upper())
-                    season_matches['date'] = self.__convert_date(match_date)
+                    season_matches['date'] = self.__add_timezone_to_date(match_date)
                     season_matches['match'] = team.replace('\xe2\x80\x93', '-')
                     self.season.append(season_matches)
         return self.season
 
-    @staticmethod
-    def __convert_date(match_date):
+    def __add_timezone_to_date(self, match_date):
         """
         Convert string date to datetime object
+
+        If wrong timezone, pytz module will raise an Exception
 
         :param match_date: string date
         :return: datetime object
         """
-        date_obj = datetime.strptime(match_date, '%B %d, %Y %I:%M %p')
-        amsterdam = pytz.timezone('Europe/Amsterdam')
-        date_ams = amsterdam.localize(date_obj)
-        return date_ams
+        datetime_object = datetime.strptime(match_date, '%B %d, %Y %I:%M %p')
+        timezone_object = pytz.timezone(self.timezone)
+        date_with_timezone = timezone_object.localize(datetime_object)
+        return date_with_timezone
 
     @staticmethod
-    def __convert_dutch_month_to_english(dutch_month):
+    def __convert_dutch_month_to_english(dutch_date):
         """
         Replace Dutch month for English name. Used for datetime objects
-        :param dutch_month: name of the month in dutch
+
+        :param dutch_date: '<Month> <Day>, <Year>
         :return: month in English
         """
         months = {"oktober": "October",
                   "augustus": "August",
                   "september": "September",
                   "november": "November"}
-
-        months = dict((re.escape(k), v) for k, v in months.iteritems())
         pattern = re.compile("|".join(months.keys()))
-        translated_month = pattern.sub(lambda m: months[re.escape(m.group(0))], dutch_month)
-
-        return str(translated_month)
+        try:
+            english_date = pattern.sub(lambda m: months[re.escape(m.group(0))], dutch_date)
+            return str(english_date)
+        except re.error as e:
+            raise MonthTranslationError(e)
 
     @staticmethod
     def __get_match_plan(div):
@@ -163,7 +167,10 @@ class Footy(object):
         """
         division_table = {'div2': 'Match Plan Wednesday 6v6 Div 2 Autumn 2016',
                           'div1': 'Match Plan Wednesday 6v6 Div 1 Autumn 2016'}
-        return division_table[div]
+        try:
+            return division_table[div]
+        except KeyError:
+            raise ErrorGettingDivision
 
     @staticmethod
     def __get_day_page(day):
@@ -177,7 +184,10 @@ class Footy(object):
                        '6tue': 'footy-park-tuesday-6v6',
                        '6wed': 'footy-park-woensdag-6v6',
                        '6thu': 'footy-park-donderdag-6v6'}
-        return match_table[day]
+        try:
+            return match_table[day]
+        except KeyError:
+            raise ErrorGettingLeague
 
 
 class FootyCalendar(object):
@@ -206,6 +216,7 @@ class FootyCalendar(object):
             event.begin = match['date']
             self.calendar.events.append(event)
 
-        with open(path, 'w') as file:
-            file.writelines(self.calendar)
+        with open(path, 'w') as ics_file:
+            ics_file.writelines(self.calendar)
         return True
+
