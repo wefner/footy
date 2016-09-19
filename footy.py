@@ -133,10 +133,15 @@ class Footy(object):
         :param match_date: string date
         :return: datetime object
         """
-        datetime_object = datetime.strptime(match_date, '%B %d, %Y %I:%M %p')
-        timezone_object = pytz.timezone(self.timezone)
-        date_with_timezone = timezone_object.localize(datetime_object)
-        return date_with_timezone
+        try:
+            datetime_object = datetime.strptime(match_date, '%B %d, %Y %I:%M %p')
+            timezone_object = pytz.timezone(self.timezone)
+            result_datetime = timezone_object.localize(datetime_object)
+        except ValueError as datetime_error:
+            result_datetime = False
+            self.logger.warn("Couldn't convert datetime {}".format(match_date))
+
+        return result_datetime
 
     @staticmethod
     def __convert_dutch_month_to_english(dutch_date):
@@ -149,7 +154,8 @@ class Footy(object):
         months = {"oktober": "October",
                   "augustus": "August",
                   "september": "September",
-                  "november": "November"}
+                  "november": "November",
+                  "december": "December"}
         pattern = re.compile("|".join(months.keys()))
         try:
             english_date = pattern.sub(lambda m: months[re.escape(m.group(0))], dutch_date)
