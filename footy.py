@@ -76,44 +76,70 @@ class Footy(object):
         soup_dates = None
         soup_times = None
         soup_teams = None
+        soup_scores = None
+        soup_referees = None
+        soup_motm = None
+
         try:
             soup_dates = [match.find('td', {'class': 'date1'}) for match in matchtable]
         except AttributeError:
-            self.logger.info("Couldn't find the dates of the results")
+            self.logger.info("Couldn't find the dates from the results")
         try:
             soup_times = [match.findAll('td', {'class': 'time'}) for match in matchtable]
         except AttributeError:
-            self.logger.info("Couldn't find the times of the results")
+            self.logger.info("Couldn't find the times from the results")
         try:
             soup_teams = [match.findAll('td', {'class': 'match'}) for match in matchtable]
         except AttributeError:
-            self.logger.info("Couldn't find results of the teams")
+            self.logger.info("Couldn't find results from the teams")
+        try:
+            soup_scores = [match.findAll('td', {'class': 'score'}) for match in matchtable]
+        except AttributeError:
+            self.logger.info("Couldn't find the scores from the results")
+        try:
+            soup_referees = [match.findAll('td', {'class': 'ref'}) for match in matchtable]
+        except AttributeError:
+            self.logger.info("Couldn't find the referees from the results")
+        try:
+            soup_motm = [match.findAll('td', {'class': 'man'}) for match in matchtable]
+        except AttributeError:
+            self.logger.info("Couldn't find the MOTM from the results")
 
         result = False
         try:
-            dates = [date.children.next() for date in soup_dates]
+            date_set = [date.children.next() for date in soup_dates]
             time_set = [[time.text for time in times] for times in soup_times]
             team_set = [[team.text for team in teams] for teams in soup_teams]
+            score_set = [[score.text for score in scores] for scores in soup_scores]
+            ref_set = [[ref.text for ref in referees] for referees in soup_referees]
+            motm_set = [[man.text for man in motm] for motm in soup_motm]
+
             result = True
-            return self.get_calendar_by_team(dates, time_set, team_set)
+            return self.get_calendar_by_team(date_set, time_set, team_set, score_set, ref_set, motm_set)
         except TypeError as e:
             self.logger.error("Error while getting text information from results", str(e))
             return result
 
-    def get_calendar_by_team(self, dates, time_set, team_set):
+    def get_calendar_by_team(self, date_set, time_set, team_set, score_set, ref_set, motm_set):
         """
-        Will get the calendar of the season for the specified team
+        Will get the calendar of the season for the specified team.
+
+        Will gather every set in a list and zip it. Will recursively loop into it
+        and match each field/row accordingly.
 
         List of dictionaries of the form:
-                [{'date': date_object, 'match': 'Team A - Team B'}, {...}]
+                [{'date': date_object, 'match': 'Team A - Team B', ...}, {...}]
 
-        :param dates: list of matches dates
-        :param time_set: list of matches times
-        :param team_set: list of matches teams
+        :param date_set: list of dates
+        :param time_set: list of times
+        :param team_set: list of teams
+        :param score_set: list of scores
+        :param ref_set: list of referees
+        :param motm_set: list of man of the match
         :return: list of dictionaries
         """
-        for date, times, teams in zip(dates, time_set, team_set):
-            for time, team in zip(times, teams):
+        for date, times, teams, scores, refs, motms in zip(date_set, time_set, team_set, score_set, ref_set, motm_set):
+            for time, team, score, ref, motm in zip(times, teams, scores, refs, motms):
                 if self.team in team:
                     season_matches = {}
                     team = team.encode('utf-8').strip()
@@ -121,6 +147,9 @@ class Footy(object):
                                                         time=time.upper())
                     season_matches['date'] = self.__add_timezone_to_date(match_date)
                     season_matches['match'] = team.replace('\xe2\x80\x93', '-')
+                    season_matches['score'] = score
+                    season_matches['referee'] = ref
+                    season_matches['motm'] = motm
                     self.season.append(season_matches)
         return self.season
 
@@ -166,7 +195,10 @@ class Footy(object):
     @staticmethod
     def __get_match_plan(div):
         """
-        Division where the team is playing in
+        Division where the team is playing in.
+
+        WARNING: This is hardcoded on footy website so it will have
+        to change at every season.
 
         :param div: string
         :return: legacy name to look for at the website
@@ -182,6 +214,8 @@ class Footy(object):
     def __get_day_page(day):
         """
         Type of Footy or league where the team is signed up for.
+
+        WARNING: This is a URL argument and the names change at every league.
 
         :param day: string
         :return: legacy name of the results page from the website
@@ -214,7 +248,7 @@ class FootyCalendar(object):
         Alongside with the information collected. Match is 1h
 
         :param path: absolute path of the file to be saved in
-        :return:
+        :return: ics object
         """
         for match in self.season:
             event = Event(timedelta(hours=1))
@@ -222,7 +256,10 @@ class FootyCalendar(object):
             event.begin = match['date']
             self.calendar.events.append(event)
 
-        with open(path, 'w') as ics_file:
-            ics_file.writelines(self.calendar)
-        return True
+        if not path:
+            return self.calendar
+        else:
+            with open(path, 'w') as ics_file:
+                ics_file.writelines(self.calendar)
+            return True
 
