@@ -184,7 +184,11 @@ class Footy(object):
                   "augustus": "August",
                   "september": "September",
                   "november": "November",
-                  "december": "December"}
+                  "december": "December",
+                  "januari": "January",
+                  "februari": "February",
+                  "maart": "March",
+                  "april": "April"}
         pattern = re.compile("|".join(months.keys()))
         try:
             english_date = pattern.sub(lambda m: months[re.escape(m.group(0))], dutch_date)
@@ -203,8 +207,7 @@ class Footy(object):
         :param div: string
         :return: legacy name to look for at the website
         """
-        division_table = {'div2': 'Match Plan Wednesday 6v6 Div 2 Autumn 2016',
-                          'div1': 'Match Plan Wednesday 6v6 Div 1 Autumn 2016'}
+        division_table = {'div2': 'Match Plan Tuesday 6v6 C+F Jan 2017'}
         try:
             return division_table[div]
         except KeyError:
@@ -262,4 +265,3 @@ class FootyCalendar(object):
             with open(path, 'w') as ics_file:
                 ics_file.writelines(self.calendar)
             return True
-
