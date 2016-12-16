@@ -93,3 +93,6 @@ ENV/
 # OS X
 .DS_Store
 
+# This lib
+*.ics
+
