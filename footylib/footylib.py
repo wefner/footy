@@ -5,12 +5,12 @@ import requests
 import logging
 import re
 import pytz
-from footyExceptions import *
+from footylibExceptions import *
 from bs4 import BeautifulSoup as bfs
 from datetime import datetime, timedelta
 from ics import Calendar, Event
 
-LOGGER_BASENAME = '''footy'''
+LOGGER_BASENAME = '''footylib'''
 LOGGER = logging.getLogger(LOGGER_BASENAME)
 LOGGER.setLevel(logging.DEBUG)
 LOGGER.addHandler(logging.NullHandler())
