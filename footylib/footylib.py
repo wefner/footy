@@ -29,7 +29,7 @@ class Footy(object):
         self.competitions = self.get_competitions()
 
     def __get_footy_front_page(self):
-        page = self.session.get(self.site, headers=self.headers)
+        page = self.session.get(self.site)
         soup = Bfs(page.text, 'html.parser')
         return soup
 
@@ -72,6 +72,33 @@ class Competition(object):
                 team.append(Team(row))
         return team
 
+    def get_matches(self):
+        team_page = self.session.get(self.url)
+        soup = Bfs(team_page.text, "html.parser")
+        match_table = soup.find_all('table',
+                                    {'class': 'leaguemanager matchtable'})
+        matches_per_day = []
+        for matches in match_table:
+            division = matches.attrs['title']
+            # self.logger.debug(matches)
+            for match in matches.find_all('tr', {'class': ('alternate', '')}):
+                matches_per_day.append(division)
+                for date in match.find_all('td', {'class': 'date1'}):
+                    matches_per_day.append(date.text)
+                for time in match.find_all('td', {'class': 'time'}):
+                    matches_per_day.append(time.text)
+                for location in match.find_all('td', {'class': 'location'}):
+                    matches_per_day.append(location.text)
+                for match in match.find_all('td', {'class': 'match'}):
+                    matches_per_day.append(match.text)
+                for score in match.find_all('td', {'class': 'score'}):
+                    matches_per_day.append(score.text)
+                for ref in match.find_all('td', {'class': 'ref'}):
+                    matches_per_day.append(ref.text)
+                for motm in match.find_all('td', {'class': 'man'}):
+                    matches_per_day.append(motm.text)
+            return [Match(match) for match in matches_per_day]
+
 
 class Team(object):
     def __init__(self, info):
@@ -87,6 +114,22 @@ class Team(object):
             self.goals = info.contents[15].text
             self.diff = info.contents[16].text
             self.points = info.contents[18].text
+            self.division = None
+        except KeyError as e:
+            self.logger.error(e)
+
+    def get_team_division(self):
+        pass
+
+
+class Match(object):
+    def __init__(self, info, division=None):
+        self.logger = logging.getLogger('{base}.{suffix}'.format(
+            base=LOGGER_BASENAME, suffix=self.__class__.__name__))
+        self.logger.debug(info)
+        try:
+            self.division = division
+            self.info = info
         except KeyError as e:
             self.logger.error(e)
 
@@ -97,7 +140,11 @@ if __name__ == '__main__':
     competitions = f.get_competitions()
     for c in competitions:
         print c.name
-        for t in c.get_teams():
-            print '\t', 'Position: {}'.format(t.position),
-            print '\t', 'Team Name: {}'.format(t.team_name)
-
+        for match in c.get_teams():
+            print '\t', 'Position: {}'.format(match.position),
+            print '\t', 'Team Name: {}'.format(match.team_name)
+        try:
+            for t in c.get_matches():
+                print t.info
+        except Exception as e:
+            print e
