@@ -54,7 +54,6 @@ class Competition(object):
         self.logger = logging.getLogger('{base}.{suffix}'.format(
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
         self.session = footy_instance.session
-        self.teams = self.get_teams()
         try:
             self.location = location
             self.url = url
@@ -63,27 +62,14 @@ class Competition(object):
             self.logger.error(e)
 
     def get_teams(self):
-        self.logger.debug(self.url)
         team_page = self.session.get(self.url)
         soup = Bfs(team_page.text, "html.parser")
         standings = soup.find_all('table',
                                   {'class': 'leaguemanager standingstable'})
-        # t_headers = [t.string for t in standing_table.find_all('th')]
-        info = {}
         team = []
         for teams in standings:
             for row in teams.find_all('tr', {'class': ('alternate', '')}):
-                info['position'] = row.contents[1].text
-                info['team_name'] = row.contents[5].text
-                info['played_games'] = row.contents[7].text
-                info['won_games'] = row.contents[9].text
-                info['tie_games'] = row.contents[11].text
-                info['lost_games'] = row.contents[13].text
-                info['goals'] = row.contents[15].text
-                info['diff'] = row.contents[16].text
-                info['points'] = row.contents[18].text
-                team.append(Team(info))
-            self.logger.debug(team)
+                team.append(Team(row))
         return team
 
 
@@ -91,17 +77,16 @@ class Team(object):
     def __init__(self, info):
         self.logger = logging.getLogger('{base}.{suffix}'.format(
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
-        self.logger.debug(info)
         try:
-            self.position = info.get('position')
-            self.team_name = info.get('name')
-            self.played_games = info.get('played_games')
-            self.won_games = info.get('won_games')
-            self.tie_games = info.get('tie_games')
-            self.lost_games = info.get('lost_games')
-            self.goals = info.get('goals')
-            self.diff = info.get('diff')
-            self.points = info.get('points')
+            self.position = info.contents[1].text
+            self.team_name = info.contents[5].text
+            self.played_games = info.contents[7].text
+            self.won_games = info.contents[9].text
+            self.tie_games = info.contents[11].text
+            self.lost_games = info.contents[13].text
+            self.goals = info.contents[15].text
+            self.diff = info.contents[16].text
+            self.points = info.contents[18].text
         except KeyError as e:
             self.logger.error(e)
 
@@ -110,5 +95,9 @@ if __name__ == '__main__':
     logger = logging.basicConfig(level="DEBUG")
     f = Footy()
     competitions = f.get_competitions()
-    # teams = [c.teams for c in competitions]
+    for c in competitions:
+        print c.name
+        for t in c.get_teams():
+            print '\t', 'Position: {}'.format(t.position),
+            print '\t', 'Team Name: {}'.format(t.team_name)
 
