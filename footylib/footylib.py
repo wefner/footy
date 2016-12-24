@@ -3,7 +3,6 @@
 
 import logging
 import re
-import pytz
 from requests import Session
 from footylibExceptions import *
 from bs4 import BeautifulSoup as Bfs
@@ -40,11 +39,11 @@ class Footy(object):
         for location_data in locations:
             location = location_data.find('div',
                                           {'class': 'fusion-toggle-heading'}
-                                          ).string
+                                          ).text
             for competition in location_data.find_all('a',
                                                       {'class': 'footycombut'}):
                 url = competition.attrs['href']
-                name = competition.string
+                name = competition.text
                 competitions.append(Competition(self, location, url, name))
         return competitions
 
@@ -54,12 +53,15 @@ class Competition(object):
         self.logger = logging.getLogger('{base}.{suffix}'.format(
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
         self.session = footy_instance.session
+        self._populate(location, url, name)
+
+    def _populate(self, location, url, name):
         try:
             self.location = location
             self.url = url
             self.name = name
-        except KeyError as e:
-            self.logger.error(e)
+        except KeyError:
+            self.logger.exception("Got an exception in Competition")
 
     def get_teams(self):
         team_page = self.session.get(self.url)
@@ -75,38 +77,27 @@ class Competition(object):
     def get_matches(self):
         team_page = self.session.get(self.url)
         soup = Bfs(team_page.text, "html.parser")
-        match_table = soup.find_all('table',
-                                    {'class': 'leaguemanager matchtable'})
-        matches_per_day = []
-        for matches in match_table:
-            division = matches.attrs['title']
-            # self.logger.debug(matches)
-            for match in matches.find_all('tr', {'class': ('alternate', '')}):
-                matches_per_day.append(division)
-                for date in match.find_all('td', {'class': 'date1'}):
-                    matches_per_day.append(date.text)
-                for time in match.find_all('td', {'class': 'time'}):
-                    matches_per_day.append(time.text)
-                for location in match.find_all('td', {'class': 'location'}):
-                    matches_per_day.append(location.text)
-                for match in match.find_all('td', {'class': 'match'}):
-                    matches_per_day.append(match.text)
-                for score in match.find_all('td', {'class': 'score'}):
-                    matches_per_day.append(score.text)
-                for ref in match.find_all('td', {'class': 'ref'}):
-                    matches_per_day.append(ref.text)
-                for motm in match.find_all('td', {'class': 'man'}):
-                    matches_per_day.append(motm.text)
-            return [Match(match) for match in matches_per_day]
+        match_tables = soup.find_all('table',
+                                     {'class': 'leaguemanager matchtable'})
+        all_matches = []
+        for match_table in match_tables:
+            division = match_table.attrs['title']
+            all_matches.extend([Match(row, division)
+                                for row in match_table.find_all('tr',
+                                                                {'class': ('alternate', '')})])
+        return all_matches
 
 
 class Team(object):
     def __init__(self, info):
         self.logger = logging.getLogger('{base}.{suffix}'.format(
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
+        self._populate(info)
+
+    def _populate(self, info):
         try:
             self.position = info.contents[1].text
-            self.team_name = info.contents[5].text
+            self.team_name = info.contents[5].text.encode("utf-8")
             self.played_games = info.contents[7].text
             self.won_games = info.contents[9].text
             self.tie_games = info.contents[11].text
@@ -115,23 +106,57 @@ class Team(object):
             self.diff = info.contents[16].text
             self.points = info.contents[18].text
             self.division = None
-        except KeyError as e:
-            self.logger.error(e)
-
-    def get_team_division(self):
-        pass
+        except KeyError:
+            self.logger.exception("Got an exception while populating teams")
 
 
 class Match(object):
     def __init__(self, info, division=None):
         self.logger = logging.getLogger('{base}.{suffix}'.format(
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
-        self.logger.debug(info)
+        self._populate(info, division)
+
+    def _populate(self, info, division):
         try:
-            self.division = division
-            self.info = info
-        except KeyError as e:
-            self.logger.error(e)
+            self.date = info.find('td', {'class': 'date1'}).text
+            self.time = info.find('td', {'class': 'time'}).text
+            self.location = info.find('td', {'class': 'location'}).text
+            self.match = info.find('td', {'class': 'match'}).text
+            self.score = info.find('td', {'class': 'score'}).text
+            self.referee = info.find('td', {'class': 'ref'}).text
+            self.motm = info.find('td', {'class': 'man'}).text
+            self.datetime = self.datetime_converter(self.date, self.time)
+            self.division = division or ''
+        except KeyError:
+            self.logger.exception("Got an exception on Matches.")
+
+    def datetime_converter(self, date, time):
+        dutch_datetime_str = '{} {}'.format(date, time).split()
+        month_in_english = self.convert_dutch_month_to_english(dutch_datetime_str[0])
+        dutch_datetime_str[0] = month_in_english
+        month_in_english = " ".join(dutch_datetime_str)
+        datetime_object = datetime.strptime(month_in_english, '%B %d, %Y %I:%M %p')
+        return datetime_object
+
+    def convert_dutch_month_to_english(self, dutch_month):
+        """
+        Replace Dutch month for English name. Used for datetime objects
+        :param dutch_date: '<Month> <Day>, <Year>
+        :return: month in English
+        """
+        months = {"januari": "January",
+                  "februari": "February",
+                  "maart": "March",
+                  "april": "April",
+                  "mei": "May",
+                  "juni": "June",
+                  "juli": "July",
+                  "augustus": "August",
+                  "september": "September",
+                  "oktober": "October",
+                  "november": "November",
+                  "december": "December"}
+        return months[dutch_month]
 
 
 if __name__ == '__main__':
@@ -143,8 +168,13 @@ if __name__ == '__main__':
         for match in c.get_teams():
             print '\t', 'Position: {}'.format(match.position),
             print '\t', 'Team Name: {}'.format(match.team_name)
+            print '\t', 'Played games {}'.format(match.played_games)
         try:
             for t in c.get_matches():
-                print t.info
-        except Exception as e:
-            print e
+                print t.location
+                print t.match
+                print t.division
+                print t.datetime
+        except Exception:
+            print "Got an error while getting matches"
+
