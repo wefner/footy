@@ -2,10 +2,14 @@
 
 Python library for footy.eu website.
 
+Download season calendar for Footy competitions.
 
-Download season calendar for Footy competitions and export it to a file.
-It is hard to maintain because match table names change at every season.
+Version 1.0 is deprecated.  
 
+# TODO
+- [ ] Local team and Visiting team attribute
+- [ ] Division reference in Team
+- [ ] Generate calendar 
+- [ ] Tests..
 
-There is lots of room for improvement.
 
