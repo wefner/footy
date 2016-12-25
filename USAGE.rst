@@ -4,7 +4,7 @@ Usage
 
 To use footylib in a project:
 
-From ``master`` branch
+Version 1.0
 
 .. code-block:: python
 
@@ -16,7 +16,7 @@ From ``master`` branch
     True
 
 
-From ``develop`` branch:
+Version 2.0
 
 .. code-block:: python
 
