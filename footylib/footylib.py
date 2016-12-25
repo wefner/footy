@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import logging
-import re
 from requests import Session
 from footylibExceptions import *
 from bs4 import BeautifulSoup as Bfs
@@ -29,8 +28,11 @@ class Footy(object):
 
     def __get_footy_front_page(self):
         page = self.session.get(self.site)
-        soup = Bfs(page.text, 'html.parser')
-        return soup
+        try:
+            soup = Bfs(page.text, 'html.parser')
+            return soup
+        except Bfs.HTMLParser.HTMLParseError:
+            self.logger.exception("Error while parsing Footy front page")
 
     def get_competitions(self):
         competitions = []
@@ -105,7 +107,6 @@ class Team(object):
             self.goals = info.contents[15].text
             self.diff = info.contents[16].text
             self.points = info.contents[18].text
-            self.division = None
         except KeyError:
             self.logger.exception("Got an exception while populating teams")
 
@@ -125,56 +126,31 @@ class Match(object):
             self.score = info.find('td', {'class': 'score'}).text
             self.referee = info.find('td', {'class': 'ref'}).text
             self.motm = info.find('td', {'class': 'man'}).text
-            self.datetime = self.datetime_converter(self.date, self.time)
+            self.datetime = self.string_to_datetime(self.date, self.time)
             self.division = division or ''
         except KeyError:
             self.logger.exception("Got an exception on Matches.")
 
-    def datetime_converter(self, date, time):
-        dutch_datetime_str = '{} {}'.format(date, time).split()
-        month_in_english = self.convert_dutch_month_to_english(dutch_datetime_str[0])
-        dutch_datetime_str[0] = month_in_english
-        month_in_english = " ".join(dutch_datetime_str)
-        datetime_object = datetime.strptime(month_in_english, '%B %d, %Y %I:%M %p')
+    def string_to_datetime(self, date, time):
+        dutch_datetime = '{} {}'.format(date, time).split()
+        english_datetime = self.dutch_to_english_reference(dutch_datetime[0])
+        dutch_datetime[0] = english_datetime
+        english_datetime = " ".join(dutch_datetime)
+        datetime_object = datetime.strptime(english_datetime,
+                                            '%B %d, %Y %I:%M %p')
         return datetime_object
 
-    def convert_dutch_month_to_english(self, dutch_month):
+    @staticmethod
+    def dutch_to_english_reference(dutch_month):
         """
         Replace Dutch month for English name. Used for datetime objects
-        :param dutch_date: '<Month> <Day>, <Year>
+        :param dutch_month: dutch month string
         :return: month in English
         """
-        months = {"januari": "January",
-                  "februari": "February",
-                  "maart": "March",
-                  "april": "April",
-                  "mei": "May",
-                  "juni": "June",
-                  "juli": "July",
-                  "augustus": "August",
-                  "september": "September",
-                  "oktober": "October",
-                  "november": "November",
-                  "december": "December"}
+        months = {"januari": "January", "februari": "February",
+                  "maart": "March", "april": "April",
+                  "mei": "May", "juni": "June",
+                  "juli": "July", "augustus": "August",
+                  "september": "September", "oktober": "October",
+                  "november": "November", "december": "December"}
         return months[dutch_month]
-
-
-if __name__ == '__main__':
-    logger = logging.basicConfig(level="DEBUG")
-    f = Footy()
-    competitions = f.get_competitions()
-    for c in competitions:
-        print c.name
-        for match in c.get_teams():
-            print '\t', 'Position: {}'.format(match.position),
-            print '\t', 'Team Name: {}'.format(match.team_name)
-            print '\t', 'Played games {}'.format(match.played_games)
-        try:
-            for t in c.get_matches():
-                print t.location
-                print t.match
-                print t.division
-                print t.datetime
-        except Exception:
-            print "Got an error while getting matches"
-
