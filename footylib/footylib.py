@@ -49,6 +49,15 @@ class Footy(object):
                 competitions.append(Competition(self, location, url, name))
         return competitions
 
+    def get_calendar_by_team(self, team):
+        team_calendar = []
+        for competition in self.competitions:
+            for match in competition.get_matches():
+                if team in match.name:
+                    team_calendar.append(FootyCalendar(match.name,
+                                                       match.datetime))
+        return team_calendar
+
 
 class Competition(object):
     def __init__(self, footy_instance, location, url, name):
@@ -122,7 +131,7 @@ class Match(object):
             self.date = info.find('td', {'class': 'date1'}).text
             self.time = info.find('td', {'class': 'time'}).text
             self.location = info.find('td', {'class': 'location'}).text
-            self.match = info.find('td', {'class': 'match'}).text
+            self.name = info.find('td', {'class': 'match'}).text
             self.score = info.find('td', {'class': 'score'}).text
             self.referee = info.find('td', {'class': 'ref'}).text
             self.motm = info.find('td', {'class': 'man'}).text
@@ -136,9 +145,12 @@ class Match(object):
         english_datetime = self.dutch_to_english_reference(dutch_datetime[0])
         dutch_datetime[0] = english_datetime
         english_datetime = " ".join(dutch_datetime)
-        datetime_object = datetime.strptime(english_datetime,
-                                            '%B %d, %Y %I:%M %p')
-        return datetime_object
+        try:
+            datetime_object = datetime.strptime(english_datetime,
+                                                '%B %d, %Y %I:%M %p')
+            return datetime_object
+        except ValueError:
+            self.logger.exception("Couldn't parse this datetime.")
 
     @staticmethod
     def dutch_to_english_reference(dutch_month):
@@ -154,3 +166,18 @@ class Match(object):
                   "september": "September", "oktober": "October",
                   "november": "November", "december": "December"}
         return months[dutch_month]
+
+
+class FootyCalendar(object):
+    def __init__(self, match, time):
+        self.calendar = Calendar()
+        self.generate_calendar(match, time)
+
+    def generate_calendar(self, match, time):
+        event = Event(timedelta(hours=1))
+        event.name = match
+        event.begin = time
+        self.calendar.events.append(event)
+
+        return self.calendar
+
