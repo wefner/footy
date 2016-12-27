@@ -23,31 +23,46 @@ class Footy(object):
         self.headers = {'User-Agent': 'Mozilla/5.0'}
         self.session = Session()
         self.session.headers.update(self.headers)
-        self.front_page = self.__get_footy_front_page()
-        self.competitions = self.get_competitions()
+        self._front_page = None
+        self._competitions = []
 
-    def __get_footy_front_page(self):
-        page = self.session.get(self.site)
-        try:
-            soup = Bfs(page.text, 'html.parser')
-            return soup
-        except Bfs.HTMLParser.HTMLParseError:
-            self.logger.exception("Error while parsing Footy front page")
+    # since we access the front_page as an attribute it should be a property.
+    # by using the _front_page and checking on access if it is enabled we
+    # enforce some caching. If you add some timing in the access this can be
+    # extended. Same goes for the competitions.
+    @property
+    def front_page(self):
+        if not self._front_page:
+            page = self.session.get(self.site)
+            try:
+                self._front_page = Bfs(page.text, 'html.parser')
+            except Bfs.HTMLParser.HTMLParseError:
+                self.logger.exception('Error while parsing Footy front page')
+        return self._front_page
 
-    def get_competitions(self):
-        competitions = []
-        locations = self.front_page.find_all('div',
-                                             {'class': 'fusion-panel panel-default'})
-        for location_data in locations:
-            location = location_data.find('div',
-                                          {'class': 'fusion-toggle-heading'}
-                                          ).text
-            for competition in location_data.find_all('a',
-                                                      {'class': 'footycombut'}):
-                url = competition.attrs['href']
-                name = competition.text
-                competitions.append(Competition(self, location, url, name))
-        return competitions
+    # the competitions are accessed by the get_calendar_by_team every time.
+    # since that method is supposed to be used as many times as we need it
+    # does not make any sense to get the competitions over and over. We cache
+    #  them in the _competitions variable. Again if this needs to be lond
+    # running we need to do proper caching.
+    @property
+    def competitions(self):
+        if not self._competitions:
+            locations = self.front_page.find_all('div',
+                                                 {'class': 'fusion-panel panel-default'})
+            for location_data in locations:
+                location = location_data.find('div',
+                                              {'class': 'fusion-toggle-heading'}
+                                              ).text
+                for competition in location_data.find_all('a',
+                                                          {'class': 'footycombut'}):
+                    url = competition.attrs['href']
+                    name = competition.text
+                    self._competitions.append(Competition(self,
+                                                          location,
+                                                          url,
+                                                          name))
+        return self._competitions
 
     def get_calendar_by_team(self, team):
         team_calendar = []
@@ -74,6 +89,13 @@ class Competition(object):
         except KeyError:
             self.logger.exception("Got an exception in Competition")
 
+    # this should be refactored like competitions above in a property. It
+    # does not make sense to be a method since there are no arguments passed.
+    # This should just return the teams and it is more intuitive to say
+    # self.teams. The refactoring of this and the next is left as an exercise.
+
+    #@property
+    # def teams
     def get_teams(self):
         team_page = self.session.get(self.url)
         soup = Bfs(team_page.text, "html.parser")
@@ -85,6 +107,8 @@ class Competition(object):
                 team.append(Team(row))
         return team
 
+    #@property
+    #def matches
     def get_matches(self):
         team_page = self.session.get(self.url)
         soup = Bfs(team_page.text, "html.parser")
@@ -97,6 +121,14 @@ class Competition(object):
                                 for row in match_table.find_all('tr',
                                                                 {'class': ('alternate', '')})])
         return all_matches
+
+    # here you could benefit from a get_team/search_team and a
+    # get_match_for_team
+    #def get_team(team_name):
+    #   pass
+
+    #get_matches_for_team(team_name):
+    #   pass
 
 
 class Team(object):
@@ -140,6 +172,7 @@ class Match(object):
         except KeyError:
             self.logger.exception("Got an exception on Matches.")
 
+    # this does not have to be public
     def string_to_datetime(self, date, time):
         dutch_datetime = '{} {}'.format(date, time).split()
         english_datetime = self.dutch_to_english_reference(dutch_datetime[0])
@@ -152,6 +185,7 @@ class Match(object):
         except ValueError:
             self.logger.exception("Couldn't parse this datetime.")
 
+    # and neither does this
     @staticmethod
     def dutch_to_english_reference(dutch_month):
         """
@@ -159,12 +193,18 @@ class Match(object):
         :param dutch_month: dutch month string
         :return: month in English
         """
-        months = {"januari": "January", "februari": "February",
-                  "maart": "March", "april": "April",
-                  "mei": "May", "juni": "June",
-                  "juli": "July", "augustus": "August",
-                  "september": "September", "oktober": "October",
-                  "november": "November", "december": "December"}
+        months = {"januari": "January",
+                  "februari": "February",
+                  "maart": "March",
+                  "april": "April",
+                  "mei": "May",
+                  "juni": "June",
+                  "juli": "July",
+                  "augustus": "August",
+                  "september": "September",
+                  "oktober": "October",
+                  "november": "November",
+                  "december": "December"}
         return months[dutch_month]
 
 
