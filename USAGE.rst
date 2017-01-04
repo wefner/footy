@@ -25,14 +25,14 @@ Instantiate Footy
 
     logger = logging.basicConfig(level="DEBUG")
 
-    f = Footy()
+    footy = Footy()
 
-Get competition objects
-=======================
+Get competitions
+================
 
 .. code-block:: python
 
-    competitions = f.get_competitions()
+    competitions = footy.competitions
 
     for competition in competitions:
         print "Standings for {}".format(competition.name)
@@ -46,29 +46,44 @@ Get competition objects
             print '\t\t', 'Goals {}'.format(team.goals)
             print '\t\t', 'Diff {}'.format(team.diff)
             print '\t\t', 'Points {}'.format(team.points)
-        try:
-            print "Calendar for {}".format(competition.name)
-            for match in competition.matches:
-                print '\t', 'Location: {}'.format(match.location)
-                print '\t', 'Name: {}'.format(match.teams)
-                print '\t', 'Score: {}'.format(match.score)
-                print '\t', 'Referee: {}'.format(match.referee)
-                print '\t', 'Division: {}'.format(match.division)
-                print '\t', 'Date: {}'.format(match.datetime)
-                print '\t', 'MOTM: {}'.format(match.motm)
-        except AttributeError:
-            print "Got an error while getting matches"
+        print "Calendar for {}".format(competition.name)
+        for match in competition.matches:
+            print '\t', 'Location: {}'.format(match.location)
+            print '\t', 'Name: {}'.format(match.teams)
+            print '\t', 'Score: {}'.format(match.score)
+            print '\t', 'Referee: {}'.format(match.referee)
+            print '\t', 'Division: {}'.format(match.division)
+            print '\t', 'Date: {}'.format(match.datetime)
+            print '\t', 'MOTM: {}'.format(match.motm)
 
 Search for teams
 ================
 .. code-block:: python
 
-    team = f.search_team("Hangover")
+    team = footy.search_team("Hangover")
     Found team(s): ['Hangover 96', 'Hangover 69']
 
 Get a team object
 =================
 .. code-block:: python
 
-    team = f.get_team("Hangover 69")
+    team = footy.get_team("Hangover 69")
     print team.name
+
+Generate calendar season for a team
+===================================
+.. code-block:: python
+
+    team_season = footy.get_team_season('Vièze VU')
+    calendar = FootyCalendar(team_season)
+
+    match_events = calendar.generate_calendar()
+    print match_events
+    <Calendar with 14 events>
+
+Exporting calendar to a file
+============================
+.. code-block:: python
+
+    with open('/home/footy/calendar.ics', 'w') as ics:
+        ics.writelines(match_events)

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import pytz
 import logging
 from requests import Session
 from footylibExceptions import *
@@ -31,7 +32,7 @@ class Footy(object):
         if not self._front_page:
             page = self.session.get(self.site)
             try:
-                self._front_page = Bfs(page.text, 'html.parser')
+                self._front_page = Bfs(page.text,'html.parser')
             except Bfs.HTMLParser.HTMLParseError:
                 self.logger.exception("Error while parsing Footy front page")
         return self._front_page
@@ -70,13 +71,13 @@ class Footy(object):
                     possible_teams.append(teams.name)
         return "Found team(s): {}".format(possible_teams)
 
-    def get_calendar_by_team(self, team):
+    def get_team_season(self, team):
         team_calendar = []
         for competition in self.competitions:
             for match in competition.matches:
                 if team in match.teams:
-                    team_calendar.append(FootyCalendar(match.teams,
-                                                       match.datetime))
+                    team_calendar.append(dict(match=match.teams,
+                                              time=match.datetime))
         return team_calendar
 
 
@@ -93,7 +94,7 @@ class Competition(object):
         try:
             self.location = location
             self.url = url
-            self.name = name.encode("utf-8")
+            self.name = name.encode('utf-8')
         except KeyError:
             self.logger.exception("Got an exception in Competition")
 
@@ -133,7 +134,7 @@ class Team(object):
     def _populate(self, info):
         try:
             self.position = info.contents[1].text
-            self.name = info.contents[5].text.encode("utf-8")
+            self.name = info.contents[5].text.encode('utf-8')
             self.played_games = info.contents[7].text
             self.won_games = info.contents[9].text
             self.tie_games = info.contents[11].text
@@ -156,7 +157,7 @@ class Match(object):
             self.date = info.find('td', {'class': 'date1'}).text
             self.time = info.find('td', {'class': 'time'}).text
             self.location = info.find('td', {'class': 'location'}).text
-            self.teams = info.find('td', {'class': 'match'}).text.encode("utf-8")
+            self.teams = info.find('td', {'class': 'match'}).text.encode('utf-8')
             self.score = info.find('td', {'class': 'score'}).text
             self.referee = info.find('td', {'class': 'ref'}).text
             self.motm = info.find('td', {'class': 'man'}).text
@@ -199,19 +200,30 @@ class Match(object):
 
 
 class FootyCalendar(object):
-    def __init__(self, match, time):
+    def __init__(self, season):
         self.logger = logging.getLogger('{base}.{suffix}'.format(
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
+        self.timezone = 'Europe/Amsterdam'
         self.calendar = Calendar()
-        self.match = match
-        self.time = time
-        self.generate_calendar(self.match, self.time)
+        self.season = season
 
-    def generate_calendar(self, match, time):
-        event = Event(timedelta(hours=1))
-        event.name = self.match
-        event.begin = self.time
-        self.logger.debug('{} {}'.format(match.encode('utf-8'), time))
-        self.calendar.events.append(event)
-        return self.calendar
+    def generate_calendar(self):
+        for match in self.season:
+            event = Event(duration=timedelta(hours=1))
+            event.begin = pytz.timezone(self.timezone).localize(
+                                                match.get('time'))
+            try:
+                # ics module escapes strings. Needs decoding.
+                event.name = match.get('match').decode('utf-8')
+            except (UnicodeEncodeError, UnicodeDecodeError):
+                event.name = match.get('match')
+                self.logger.exception('Unicode Error. '
+                                      'Got {event} {type}'.format(
+                                                          event=event.name,
+                                                          type=type(event.name)))
+            except AttributeError:
+                self.logger.exception("Got an exception in calendar")
+
+            self.calendar.events.append(event)
+        return str(self.calendar)
 
