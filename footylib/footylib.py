@@ -56,26 +56,31 @@ class Footy(object):
                                                           name))
         return self._competitions
 
-    def get_team(self, team):
+    def get_team(self, team_name):
+        output = None
         for competition in self.competitions:
-            for teams in competition.teams:
-                if team == teams.name:
-                    self.logger.info("Team {} found".format(team))
-                    return teams
+            for team in competition.teams:
+                if team.name == team_name:
+                    output = team
+                    self.logger.info("Team {} found".format(team_name))
+                    break
+                # TODO: exit from outter loop
+                break
+        return output
 
-    def search_team(self, team):
+    def search_team(self, team_name):
         possible_teams = []
         for competition in self.competitions:
-            for teams in competition.teams:
-                if team in teams.name:
-                    possible_teams.append(teams.name)
-        return "Found team(s): {}".format(possible_teams)
+            for team in competition.teams:
+                if team_name in team.name:
+                    possible_teams.append(team.name)
+        return possible_teams
 
-    def get_team_season(self, team):
+    def get_team_season(self, team_name):
         team_calendar = []
         for competition in self.competitions:
             for match in competition.matches:
-                if team in match.teams:
+                if team_name in match.teams:
                     team_calendar.append(dict(match=match.teams,
                                               time=match.datetime))
         return team_calendar
@@ -88,7 +93,7 @@ class Competition(object):
         self.session = footy_instance.session
         self._populate(location, url, name)
         self._teams = []
-        self._matches = []
+        self.matces =
 
     def _populate(self, location, url, name):
         try:
@@ -125,11 +130,20 @@ class Competition(object):
         return self._matches
 
 
+    @property
+    def calendar(self):
+        if not self._calendar:
+            for team in self.team:
+                self._calendar += team.calendar
+        return self._calendar
+
 class Team(object):
     def __init__(self, info):
         self.logger = logging.getLogger('{base}.{suffix}'.format(
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
         self._populate(info)
+        self._matches = []
+        self._calendar = ''
 
     def _populate(self, info):
         try:
@@ -144,6 +158,27 @@ class Team(object):
             self.points = info.contents[18].text
         except KeyError:
             self.logger.exception("Got an exception while populating teams")
+
+    @property
+    def matches(self):
+        if not self._matches:
+            team_page = self.session.get(self.url)
+            soup = Bfs(team_page.text, "html.parser")
+            match_tables = soup.find_all('table',
+                                         {'class': 'leaguemanager matchtable'})
+            for match_table in match_tables:
+                division = match_table.attrs['title']
+                self._matches.extend([Match(row, division)
+                                     for row in match_table.find_all('tr',
+                                                                     {'class': ('alternate', '')})])
+        return self._matches
+
+    @property
+    def calendar(self):
+        if not self._calendar:
+            for match in self.matches:
+                self._calendar += match.calendar
+        return self._calendar
 
 
 class Match(object):
@@ -162,28 +197,21 @@ class Match(object):
             self.referee = info.find('td', {'class': 'ref'}).text
             self.motm = info.find('td', {'class': 'man'}).text
             self.datetime = self.__string_to_datetime(self.date, self.time)
+            self._calendar = None
             self.division = division or ''
         except KeyError:
             self.logger.exception("Got an exception on Matches.")
 
-    def __string_to_datetime(self, date, time):
-        dutch_datetime = '{} {}'.format(date, time).split()
-        english_datetime = self.__dutch_to_english_reference(dutch_datetime[0])
-        dutch_datetime[0] = english_datetime
-        english_datetime = " ".join(dutch_datetime)
-        try:
-            datetime_object = datetime.strptime(english_datetime,
-                                                '%B %d, %Y %I:%M %p')
-            return datetime_object
-        except ValueError:
-            self.logger.exception("Couldn't parse this datetime.")
 
-    def __dutch_to_english_reference(self, dutch_month):
-        """
-        Replace Dutch month for English name. Used for datetime objects
-        :param dutch_month: dutch month string
-        :return: month in English
-        """
+    @property
+    def calendar(self):
+        if not self._calendar:
+            cal = FootyCalendar(self.date, self.name, self.location)
+            self._calendar = cal.generate()
+        return self._calendar
+
+    @staticmethod
+    def __string_to_datetime(date, time):
         months = {"januari": "January",
                   "februari": "February",
                   "maart": "March",
@@ -196,7 +224,17 @@ class Match(object):
                   "oktober": "October",
                   "november": "November",
                   "december": "December"}
-        return months[dutch_month]
+        dutch_datetime = '{} {}'.format(date, time).split()
+        # TODO: look for NL locale
+        english_datetime = months[dutch_datetime[0]]
+        dutch_datetime[0] = english_datetime
+        english_datetime = " ".join(dutch_datetime)
+        try:
+            datetime_object = datetime.strptime(english_datetime,
+                                                '%B %d, %Y %I:%M %p')
+            return datetime_object
+        except ValueError:
+            LOGGER.exception("Couldn't parse this datetime.")
 
 
 class FootyCalendar(object):
@@ -207,7 +245,7 @@ class FootyCalendar(object):
         self.calendar = Calendar()
         self.season = season
 
-    def generate_calendar(self):
+    def generate(self):
         for match in self.season:
             event = Event(duration=timedelta(hours=1))
             event.begin = pytz.timezone(self.timezone).localize(
