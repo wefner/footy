@@ -3,6 +3,7 @@
 
 import pytz
 import logging
+import locale
 from requests import Session
 from footylibExceptions import *
 from bs4 import BeautifulSoup as Bfs
@@ -28,7 +29,7 @@ class Footy(object):
         self._competitions = []
 
     @property
-    def front_page(self):
+    def __front_page(self):
         if not self._front_page:
             page = self.session.get(self.site)
             try:
@@ -40,7 +41,7 @@ class Footy(object):
     @property
     def competitions(self):
         if not self._competitions:
-            locations = self.front_page.find_all('div',
+            locations = self.__front_page.find_all('div',
                                                  {'class': 'fusion-panel panel-default'})
             for location_data in locations:
                 location = location_data.find('div',
@@ -61,11 +62,9 @@ class Footy(object):
         for competition in self.competitions:
             for team in competition.teams:
                 if team.name == team_name:
-                    output = team
                     self.logger.info("Team {} found".format(team_name))
-                    break
-                # TODO: exit from outter loop
-                break
+                    output = team
+                # TODO: exit from outter loop as soon as found
         return output
 
     def search_team(self, team_name):
@@ -93,7 +92,8 @@ class Competition(object):
         self.session = footy_instance.session
         self._populate(location, url, name)
         self._teams = []
-        self.matces =
+        self._matches = []
+        self._calendar = ''
 
     def _populate(self, location, url, name):
         try:
@@ -112,7 +112,7 @@ class Competition(object):
                                       {'class': 'leaguemanager standingstable'})
             for teams in standings:
                 for row in teams.find_all('tr', {'class': ('alternate', '')}):
-                    self._teams.append(Team(row))
+                    self._teams.append(Team(self, self.url, row))
         return self._teams
 
     @property
@@ -129,18 +129,21 @@ class Competition(object):
                                                                      {'class': ('alternate', '')})])
         return self._matches
 
-
     @property
     def calendar(self):
         if not self._calendar:
-            for team in self.team:
+            for team in self.teams:
+                self.logger.debug(team.calendar)
                 self._calendar += team.calendar
         return self._calendar
 
+
 class Team(object):
-    def __init__(self, info):
+    def __init__(self, footy_instance, competition_page, info):
         self.logger = logging.getLogger('{base}.{suffix}'.format(
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
+        self.session = footy_instance.session
+        self.url = competition_page
         self._populate(info)
         self._matches = []
         self._calendar = ''
@@ -177,6 +180,7 @@ class Team(object):
     def calendar(self):
         if not self._calendar:
             for match in self.matches:
+                self.logger.debug(match)
                 self._calendar += match.calendar
         return self._calendar
 
@@ -186,6 +190,7 @@ class Match(object):
         self.logger = logging.getLogger('{base}.{suffix}'.format(
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
         self._populate(info, division)
+        self._calendar = ''
 
     def _populate(self, info, division):
         try:
@@ -197,40 +202,24 @@ class Match(object):
             self.referee = info.find('td', {'class': 'ref'}).text
             self.motm = info.find('td', {'class': 'man'}).text
             self.datetime = self.__string_to_datetime(self.date, self.time)
-            self._calendar = None
             self.division = division or ''
         except KeyError:
             self.logger.exception("Got an exception on Matches.")
 
-
     @property
     def calendar(self):
         if not self._calendar:
-            cal = FootyCalendar(self.date, self.name, self.location)
+            cal = FootyCalendar(self.datetime, self.teams, self.location)
             self._calendar = cal.generate()
+            self.logger.debug(self._calendar)
         return self._calendar
 
     @staticmethod
     def __string_to_datetime(date, time):
-        months = {"januari": "January",
-                  "februari": "February",
-                  "maart": "March",
-                  "april": "April",
-                  "mei": "May",
-                  "juni": "June",
-                  "juli": "July",
-                  "augustus": "August",
-                  "september": "September",
-                  "oktober": "October",
-                  "november": "November",
-                  "december": "December"}
-        dutch_datetime = '{} {}'.format(date, time).split()
-        # TODO: look for NL locale
-        english_datetime = months[dutch_datetime[0]]
-        dutch_datetime[0] = english_datetime
-        english_datetime = " ".join(dutch_datetime)
+        locale.setlocale(locale.LC_TIME, 'nl_NL')
+        dutch_datetime = '{} {}'.format(date.capitalize(), time)
         try:
-            datetime_object = datetime.strptime(english_datetime,
+            datetime_object = datetime.strptime(dutch_datetime,
                                                 '%B %d, %Y %I:%M %p')
             return datetime_object
         except ValueError:
@@ -238,30 +227,34 @@ class Match(object):
 
 
 class FootyCalendar(object):
-    def __init__(self, season):
+    def __init__(self, datetime, teams, location):
         self.logger = logging.getLogger('{base}.{suffix}'.format(
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
         self.timezone = 'Europe/Amsterdam'
         self.calendar = Calendar()
-        self.season = season
+        self.datetime = datetime
+        self.teams = teams
+        self.location = location
 
     def generate(self):
-        for match in self.season:
-            event = Event(duration=timedelta(hours=1))
-            event.begin = pytz.timezone(self.timezone).localize(
-                                                match.get('time'))
-            try:
-                # ics module escapes strings. Needs decoding.
-                event.name = match.get('match').decode('utf-8')
-            except (UnicodeEncodeError, UnicodeDecodeError):
-                event.name = match.get('match')
-                self.logger.exception('Unicode Error. '
-                                      'Got {event} {type}'.format(
-                                                          event=event.name,
-                                                          type=type(event.name)))
-            except AttributeError:
-                self.logger.exception("Got an exception in calendar")
+        event = Event(duration=timedelta(hours=1))
+        try:
+            event.begin = pytz.timezone(self.timezone).localize(self.datetime)
+        except AttributeError:
+            self.logger.exception('{} not valid datetime'.format(self.datetime))
+        try:
+            # ics module escapes strings. Needs decoding.
+            event.name = self.teams.decode('utf-8')
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            self.logger.exception('Unicode Error. '
+                                  'Got {event} {type}'.format(
+                                                      event=event.name,
+                                                      type=type(event.name)))
+            event.name = self.teams
+        except AttributeError:
+            self.logger.exception("Got an exception in calendar")
 
-            self.calendar.events.append(event)
+        self.calendar.events.append(event)
+        self.logger.debug(str(self.calendar))
         return str(self.calendar)
 
