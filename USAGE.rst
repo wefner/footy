@@ -1,10 +1,6 @@
-=====
-Usage
-=====
-
-To use footylib in a project:
-
+===========
 Version 1.0
+===========
 
 .. code-block:: python
 
@@ -16,8 +12,12 @@ Version 1.0
     True
 
 
+===========
 Version 2.0
+===========
 
+Instantiate Footy
+=================
 .. code-block:: python
 
     from footylib import Footy
@@ -25,33 +25,65 @@ Version 2.0
 
     logger = logging.basicConfig(level="DEBUG")
 
-    f = Footy()
-    competitions = f.get_competitions()
+    footy = Footy()
 
-    for c in competitions:
-        print c.name
-        print 'Grid:'
-        for match in c.get_teams():
-            print '\t', 'Position: {}'.format(match.position)
-            print '\t\t', 'Team: {}'.format(match.team_name)
-            print '\t\t', 'Played games {}'.format(match.played_games)
-            print '\t\t', 'Won games {}'.format(match.won_games)
-            print '\t\t', 'Tie games {}'.format(match.tie_games)
-            print '\t\t', 'Lost games {}'.format(match.lost_games)
-            print '\t\t', 'Goals {}'.format(match.goals)
-            print '\t\t', 'Diff {}'.format(match.diff)
-            print '\t\t', 'Points {}'.format(match.points)
-        try:
-            print "Calendar:"
-            for t in c.get_matches():
-                print t.location
-                print t.match
-                print t.score
-                print t.referee
-                print t.division
-                print t.datetime
-                print t.motm
-        except AttributeError:
-            print "Got an error while getting matches"
+Get competitions
+================
 
+.. code-block:: python
 
+    competitions = footy.competitions
+
+    for competition in competitions:
+        print "Standings for {}".format(competition.name)
+        for team in competition.teams:
+            print '\t', 'Team: {}'.format(team.name)
+            print '\t\t', 'Position: {}'.format(team.position)
+            print '\t\t', 'Played games {}'.format(team.played_games)
+            print '\t\t', 'Won games {}'.format(team.won_games)
+            print '\t\t', 'Tie games {}'.format(team.tie_games)
+            print '\t\t', 'Lost games {}'.format(team.lost_games)
+            print '\t\t', 'Goals {}'.format(team.goals)
+            print '\t\t', 'Diff {}'.format(team.diff)
+            print '\t\t', 'Points {}'.format(team.points)
+        print "Calendar for {}".format(competition.name)
+        for match in competition.matches:
+            print '\t', 'Location: {}'.format(match.location)
+            print '\t', 'Name: {}'.format(match.teams)
+            print '\t', 'Score: {}'.format(match.score)
+            print '\t', 'Referee: {}'.format(match.referee)
+            print '\t', 'Division: {}'.format(match.division)
+            print '\t', 'Date: {}'.format(match.datetime)
+            print '\t', 'MOTM: {}'.format(match.motm)
+
+Search for teams
+================
+.. code-block:: python
+
+    team = footy.search_team("Hangover")
+    Found team(s): ['Hangover 96', 'Hangover 69']
+
+Get a team object
+=================
+.. code-block:: python
+
+    team = footy.get_team("Hangover 69")
+    print team.name
+
+Generate calendar season for a team
+===================================
+.. code-block:: python
+
+    team_season = footy.get_team_season('Vièze VU')
+    calendar = FootyCalendar(team_season)
+
+    match_events = calendar.generate_calendar()
+    print match_events
+    <Calendar with 14 events>
+
+Exporting calendar to a file
+============================
+.. code-block:: python
+
+    with open('/home/footy/calendar.ics', 'w') as ics:
+        ics.writelines(match_events)
