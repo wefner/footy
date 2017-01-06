@@ -21,17 +21,17 @@ class Footy(object):
     def __init__(self):
         self.logger = logging.getLogger('{base}.{suffix}'.format(
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
-        self.site = "http://www.footy.eu/"
-        self.headers = {'User-Agent': 'Mozilla/5.0'}
+        self._site = "http://www.footy.eu/"
+        self._headers = {'User-Agent': 'Mozilla/5.0'}
         self.session = Session()
-        self.session.headers.update(self.headers)
+        self.session.headers.update(self._headers)
         self._front_page = None
         self._competitions = []
 
     @property
     def __front_page(self):
         if not self._front_page:
-            page = self.session.get(self.site)
+            page = self.session.get(self._site)
             try:
                 self._front_page = Bfs(page.text,'html.parser')
             except Bfs.HTMLParser.HTMLParseError:
@@ -58,100 +58,91 @@ class Footy(object):
         return self._competitions
 
     def get_team(self, team_name):
-        output = None
+        team = None
         for competition in self.competitions:
-            for team in competition.teams:
-                if team.name == team_name:
-                    self.logger.info("Team {} found".format(team_name))
-                    output = team
-                # TODO: exit from outter loop as soon as found
-        return output
+            team = next((team for team in competition.teams
+                         if team.name == team_name), None)
+            if team:
+                break
+        return team
 
     def search_team(self, team_name):
         possible_teams = []
         for competition in self.competitions:
             for team in competition.teams:
                 if team_name in team.name:
-                    possible_teams.append(team.name)
+                    possible_teams.append(team)
         return possible_teams
-
-    def get_team_season(self, team_name):
-        team_calendar = []
-        for competition in self.competitions:
-            for match in competition.matches:
-                if team_name in match.teams:
-                    team_calendar.append(dict(match=match.teams,
-                                              time=match.datetime))
-        return team_calendar
 
 
 class Competition(object):
     def __init__(self, footy_instance, location, url, name):
-        self.logger = logging.getLogger('{base}.{suffix}'.format(
+        self._logger = logging.getLogger('{base}.{suffix}'.format(
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
         self.session = footy_instance.session
         self._populate(location, url, name)
         self._teams = []
         self._matches = []
-        self._calendar = ''
+        self._calendar = None
 
     def _populate(self, location, url, name):
         try:
             self.location = location
             self.url = url
-            self.name = name.encode('utf-8')
+            self.name = name.encode('utf-8').strip()
         except KeyError:
-            self.logger.exception("Got an exception in Competition")
+            self._logger.exception("Got an exception in Competition")
 
     @property
     def teams(self):
         if not self._teams:
-            team_page = self.session.get(self.url)
-            soup = Bfs(team_page.text, "html.parser")
-            standings = soup.find_all('table',
-                                      {'class': 'leaguemanager standingstable'})
+            standings = self._get_table('standingstable')
             for teams in standings:
                 for row in teams.find_all('tr', {'class': ('alternate', '')}):
-                    self._teams.append(Team(self, self.url, row))
+                    self._teams.append(Team(self, row))
         return self._teams
 
     @property
     def matches(self):
         if not self._matches:
-            team_page = self.session.get(self.url)
-            soup = Bfs(team_page.text, "html.parser")
-            match_tables = soup.find_all('table',
-                                         {'class': 'leaguemanager matchtable'})
+            match_tables = self._get_table('matchtable')
             for match_table in match_tables:
                 division = match_table.attrs['title']
-                self._matches.extend([Match(row, division)
+                self._matches.extend([Match(self, row, division)
                                      for row in match_table.find_all('tr',
                                                                      {'class': ('alternate', '')})])
         return self._matches
 
+    def _get_table(self, class_attribute):
+        competition_page = self.session.get(self.url)
+        soup = Bfs(competition_page.text, "html.parser")
+        return soup.find_all('table',
+                             {'class': 'leaguemanager {}'.format(class_attribute)})
+
     @property
     def calendar(self):
         if not self._calendar:
+            self._calendar = Calendar()
             for team in self.teams:
-                self.logger.debug(team.calendar)
-                self._calendar += team.calendar
-        return self._calendar
+                for event in team.events:
+                    self._calendar.events.append(event)
+        return str(self._calendar)
 
 
 class Team(object):
-    def __init__(self, footy_instance, competition_page, info):
+    def __init__(self, competition_instance, info):
         self.logger = logging.getLogger('{base}.{suffix}'.format(
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
-        self.session = footy_instance.session
-        self.url = competition_page
+        self.session = competition_instance.session
+        self.competition = competition_instance
+        self.url = competition_instance.url
         self._populate(info)
-        self._matches = []
-        self._calendar = ''
+        self._calendar = None
 
     def _populate(self, info):
         try:
             self.position = info.contents[1].text
-            self.name = info.contents[5].text.encode('utf-8')
+            self.name = info.contents[5].text.encode('utf-8').strip()
             self.played_games = info.contents[7].text
             self.won_games = info.contents[9].text
             self.tie_games = info.contents[11].text
@@ -164,40 +155,37 @@ class Team(object):
 
     @property
     def matches(self):
-        if not self._matches:
-            team_page = self.session.get(self.url)
-            soup = Bfs(team_page.text, "html.parser")
-            match_tables = soup.find_all('table',
-                                         {'class': 'leaguemanager matchtable'})
-            for match_table in match_tables:
-                division = match_table.attrs['title']
-                self._matches.extend([Match(row, division)
-                                     for row in match_table.find_all('tr',
-                                                                     {'class': ('alternate', '')})])
-        return self._matches
+        return [match for match in self.competition.matches
+                if self.name in match.title]
+
+    @property
+    def events(self):
+        return [match.event for match in self.matches]
 
     @property
     def calendar(self):
         if not self._calendar:
-            for match in self.matches:
-                self.logger.debug(match)
-                self._calendar += match.calendar
-        return self._calendar
+            self._calendar = Calendar()
+            for event in self.events:
+                self._calendar.events.append(event)
+        return str(self._calendar)
 
 
 class Match(object):
-    def __init__(self, info, division=None):
+    def __init__(self, competition_instance, info, division=None):
         self.logger = logging.getLogger('{base}.{suffix}'.format(
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
         self._populate(info, division)
-        self._calendar = ''
+        self.competitions = competition_instance
+        self._calendar = None
+        self.event = FootyEvent(self.datetime, self.title, self.location)
 
     def _populate(self, info, division):
         try:
             self.date = info.find('td', {'class': 'date1'}).text
             self.time = info.find('td', {'class': 'time'}).text
             self.location = info.find('td', {'class': 'location'}).text
-            self.teams = info.find('td', {'class': 'match'}).text.encode('utf-8')
+            self.title = info.find('td', {'class': 'match'}).text.encode('utf-8').strip()
             self.score = info.find('td', {'class': 'score'}).text
             self.referee = info.find('td', {'class': 'ref'}).text
             self.motm = info.find('td', {'class': 'man'}).text
@@ -207,12 +195,28 @@ class Match(object):
             self.logger.exception("Got an exception on Matches.")
 
     @property
+    def visiting_team(self):
+        return self._get_team(home_team=False)
+
+    @property
+    def home_team(self):
+        return self._get_team()
+
+    def _get_team(self, home_team=True):
+        home, visiting = self.title.split(' – ')
+        match = home.strip()
+        if not home_team:
+            match = visiting.strip()
+        team = next((team for team in self.competitions.teams
+                     if team.name == match), None)
+        return team
+
+    @property
     def calendar(self):
         if not self._calendar:
-            cal = FootyCalendar(self.datetime, self.teams, self.location)
-            self._calendar = cal.generate()
-            self.logger.debug(self._calendar)
-        return self._calendar
+            self._calendar = Calendar()
+            self._calendar.events.append(self.event)
+        return str(self._calendar)
 
     @staticmethod
     def __string_to_datetime(date, time):
@@ -226,35 +230,25 @@ class Match(object):
             LOGGER.exception("Couldn't parse this datetime.")
 
 
-class FootyCalendar(object):
-    def __init__(self, datetime, teams, location):
+class FootyEvent(object):
+    def __new__(self, match_date, match, location):
         self.logger = logging.getLogger('{base}.{suffix}'.format(
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
         self.timezone = 'Europe/Amsterdam'
-        self.calendar = Calendar()
-        self.datetime = datetime
-        self.teams = teams
-        self.location = location
-
-    def generate(self):
         event = Event(duration=timedelta(hours=1))
         try:
-            event.begin = pytz.timezone(self.timezone).localize(self.datetime)
+            event.begin = pytz.timezone(self.timezone).localize(match_date)
         except AttributeError:
-            self.logger.exception('{} not valid datetime'.format(self.datetime))
+            self.logger.exception('{} not valid datetime'.format(match_date))
         try:
             # ics module escapes strings. Needs decoding.
-            event.name = self.teams.decode('utf-8')
+            event.name = match.decode('utf-8')
         except (UnicodeEncodeError, UnicodeDecodeError):
             self.logger.exception('Unicode Error. '
                                   'Got {event} {type}'.format(
                                                       event=event.name,
                                                       type=type(event.name)))
-            event.name = self.teams
+            event.name = match
         except AttributeError:
             self.logger.exception("Got an exception in calendar")
-
-        self.calendar.events.append(event)
-        self.logger.debug(str(self.calendar))
-        return str(self.calendar)
-
+        return event
