@@ -84,6 +84,7 @@ class Competition(object):
         self._teams = []
         self._matches = []
         self._calendar = None
+        self._soup = None
 
     def _populate(self, location, url, name):
         try:
@@ -107,17 +108,18 @@ class Competition(object):
         if not self._matches:
             match_tables = self._get_table('matchtable')
             for match_table in match_tables:
-                division = match_table.attrs['title']
-                self._matches.extend([Match(self, row, division)
-                                     for row in match_table.find_all('tr',
-                                                                     {'class': ('alternate', '')})])
+                for row in match_table.find_all('tr',
+                                                {'class': ('alternate', '')}):
+                    division = match_table.attrs['title']
+                    self._matches.append(Match(self, row, division))
         return self._matches
 
     def _get_table(self, class_attribute):
-        competition_page = self.session.get(self.url)
-        soup = Bfs(competition_page.text, "html.parser")
-        return soup.find_all('table',
-                             {'class': 'leaguemanager {}'.format(class_attribute)})
+        if not self._soup:
+            competition_page = self.session.get(self.url)
+            self._soup = Bfs(competition_page.text, "html.parser")
+        return self._soup.find_all('table',
+                                    {'class': 'leaguemanager {}'.format(class_attribute)})
 
     @property
     def calendar(self):
