@@ -233,15 +233,12 @@ class Match(object):
 
 
 class FootyEvent(object):
-    def __new__(self, match_date, match, location):
-        self.logger = logging.getLogger('{base}.{suffix}'.format(
-            base=LOGGER_BASENAME, suffix=self.__class__.__name__))
-        self.timezone = 'Europe/Amsterdam'
+    def __new__(cls, match_date, match, location):
         event = Event(duration=timedelta(hours=1))
         try:
             event.add('dtstart',
-                      pytz.timezone(self.timezone).localize(match_date))
+                      pytz.timezone('Europe/Amsterdam').localize(match_date))
             event.add('summary', match)
         except AttributeError:
-            self.logger.exception('{} not valid datetime'.format(match_date))
+            LOGGER.exception('{} not valid datetime'.format(match_date))
         return event
