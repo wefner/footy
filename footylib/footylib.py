@@ -18,13 +18,14 @@ LOGGER.addHandler(logging.NullHandler())
 
 
 class Footy(object):
+    headers = {'User-Agent': 'Mozilla/5.0'}
+
     def __init__(self):
         self.logger = logging.getLogger('{base}.{suffix}'.format(
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
         self._site = "http://www.footy.eu/"
-        self._headers = {'User-Agent': 'Mozilla/5.0'}
         self.session = Session()
-        self.session.headers.update(self._headers)
+        self.session.headers.update(Footy.headers)
         self._front_page = None
         self._competitions = []
 
@@ -42,13 +43,15 @@ class Footy(object):
     def competitions(self):
         if not self._competitions:
             locations = self.__front_page.find_all('div',
-                                                 {'class': 'fusion-panel panel-default'})
+                                                 {'class': 'fusion-panel '
+                                                           'panel-default'})
             for location_data in locations:
                 location = location_data.find('div',
                                               {'class': 'fusion-toggle-heading'}
                                               ).text
                 for competition in location_data.find_all('a',
-                                                          {'class': 'footycombut'}):
+                                                          {'class': 'footy'
+                                                                    'combut'}):
                     url = competition.attrs['href']
                     name = competition.text
                     self._competitions.append(Competition(self,
@@ -180,6 +183,8 @@ class Match(object):
         self._populate(info, division)
         self.competitions = competition_instance
         self._calendar = None
+        self._visiting_team = None
+        self._home_team = None
         self.event = FootyEvent(self.datetime, self.title, self.location)
 
     def _populate(self, info, division):
@@ -198,11 +203,15 @@ class Match(object):
 
     @property
     def visiting_team(self):
-        return self._get_team(home_team=False)
+        if not self._visiting_team:
+            self._visiting_team = self._get_team(home_team=False)
+        return self._visiting_team.name
 
     @property
     def home_team(self):
-        return self._get_team()
+        if not self._home_team:
+            self._home_team = self._get_team()
+        return self._home_team.name
 
     def _get_team(self, home_team=True):
         home, visiting = self.title.split(' – ')
