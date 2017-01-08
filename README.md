@@ -8,7 +8,7 @@ Version 1.0 is deprecated. Please see USAGE
 - [X] Local team and Visiting team attribute
 - [ ] Division reference in Team
 - [X] Generate calendar
-- [ ] Look for a calendar module that support unicode
+- [X] Look for a calendar module that support unicode
 - [ ] Tests..
 
 

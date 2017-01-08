@@ -8,7 +8,7 @@ from requests import Session
 from footylibExceptions import *
 from bs4 import BeautifulSoup as Bfs
 from datetime import datetime, timedelta
-from ics import Calendar, Event
+from icalendar import Calendar, Event
 
 
 LOGGER_BASENAME = '''footylib'''
@@ -127,8 +127,8 @@ class Competition(object):
             self._calendar = Calendar()
             for team in self.teams:
                 for event in team.events:
-                    self._calendar.events.append(event)
-        return str(self._calendar)
+                    self._calendar.add_component(event)
+        return self._calendar
 
 
 class Team(object):
@@ -169,8 +169,8 @@ class Team(object):
         if not self._calendar:
             self._calendar = Calendar()
             for event in self.events:
-                self._calendar.events.append(event)
-        return str(self._calendar)
+                self._calendar.add_component(event)
+        return self._calendar
 
 
 class Match(object):
@@ -184,14 +184,14 @@ class Match(object):
 
     def _populate(self, info, division):
         try:
-            self.date = info.find('td', {'class': 'date1'}).text
-            self.time = info.find('td', {'class': 'time'}).text
+            self._date = info.find('td', {'class': 'date1'}).text
+            self._time = info.find('td', {'class': 'time'}).text
             self.location = info.find('td', {'class': 'location'}).text
             self.title = info.find('td', {'class': 'match'}).text.encode('utf-8').strip()
             self.score = info.find('td', {'class': 'score'}).text
             self.referee = info.find('td', {'class': 'ref'}).text
             self.motm = info.find('td', {'class': 'man'}).text
-            self.datetime = self.__string_to_datetime(self.date, self.time)
+            self.datetime = self.__string_to_datetime(self._date, self._time)
             self.division = division or ''
         except KeyError:
             self.logger.exception("Got an exception on Matches.")
@@ -217,8 +217,8 @@ class Match(object):
     def calendar(self):
         if not self._calendar:
             self._calendar = Calendar()
-            self._calendar.events.append(self.event)
-        return str(self._calendar)
+            self._calendar.add_component(self.event)
+        return self._calendar
 
     @staticmethod
     def __string_to_datetime(date, time):
@@ -239,18 +239,9 @@ class FootyEvent(object):
         self.timezone = 'Europe/Amsterdam'
         event = Event(duration=timedelta(hours=1))
         try:
-            event.begin = pytz.timezone(self.timezone).localize(match_date)
+            event.add('dtstart',
+                      pytz.timezone(self.timezone).localize(match_date))
+            event.add('summary', match)
         except AttributeError:
             self.logger.exception('{} not valid datetime'.format(match_date))
-        try:
-            # ics module escapes strings. Needs decoding.
-            event.name = match.decode('utf-8')
-        except (UnicodeEncodeError, UnicodeDecodeError):
-            self.logger.exception('Unicode Error. '
-                                  'Got {event} {type}'.format(
-                                                      event=event.name,
-                                                      type=type(event.name)))
-            event.name = match
-        except AttributeError:
-            self.logger.exception("Got an exception in calendar")
         return event
