@@ -55,7 +55,7 @@ Exporting calendar to a file
 .. code-block:: python
 
     with open('/home/footy/calendar.ics', 'w') as ics:
-        ics.writelines(team.calendar)
+        ics.writelines(team.calendar.to_ical())
 
 Get all attributes
 ==================
