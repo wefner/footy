@@ -42,7 +42,7 @@ class Footy(object):
     def competitions(self):
         if not self._competitions:
             locations = self.__front_page.find_all('div',
-                                                   {'class': 'fusion-panelpanel-default'})
+                                                   {'class': 'fusion-panel panel-default'})
             for location_data in locations:
                 location = location_data.find('div',
                                               {'class': 'fusion-toggle-heading'}
@@ -204,13 +204,13 @@ class Match(object):
     def visiting_team(self):
         if not self._visiting_team:
             self._visiting_team = self._get_team(home_team=False)
-        return self._visiting_team.name
+        return self._visiting_team
 
     @property
     def home_team(self):
         if not self._home_team:
             self._home_team = self._get_team()
-        return self._home_team.name
+        return self._home_team
 
     def _get_team(self, home_team=True):
         home, visiting = self.title.split(' – ')
