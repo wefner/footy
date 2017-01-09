@@ -221,7 +221,7 @@ class Match(object):
                      if team.name == match), None)
         return team
 
-    def _get_team_goals(self, home_team_goals=True):
+    def _get_match_goals(self, home_team_goals=True):
         home, visiting = self.score.split(':')
         score = home
         if not home_team_goals:
@@ -231,13 +231,13 @@ class Match(object):
     @property
     def home_team_goals(self):
         if not self._home_team_goals:
-            self._home_team_goals = self._get_team_goals()
+            self._home_team_goals = self._get_match_goals()
         return self._home_team_goals
 
     @property
     def visiting_team_goals(self):
         if not self._visiting_team_goals:
-            self._visiting_team_goals = self._get_team_goals(
+            self._visiting_team_goals = self._get_match_goals(
                                                         home_team_goals=False)
         return self._visiting_team_goals
 
