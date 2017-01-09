@@ -8,7 +8,7 @@ from requests import Session
 from footylibExceptions import *
 from bs4 import BeautifulSoup as Bfs
 from datetime import datetime, timedelta
-from icalendar import Calendar, Event
+from icalendar import Calendar, Event, vText
 
 
 LOGGER_BASENAME = '''footylib'''
@@ -111,7 +111,10 @@ class Competition(object):
                 for row in match_table.find_all('tr',
                                                 {'class': ('alternate', '')}):
                     division = match_table.attrs['title']
-                    self._matches.append(Match(self, row, division))
+                    self._matches.append(Match(self,
+                                               row,
+                                               self.location,
+                                               division))
         return self._matches
 
     def _get_table(self, class_attribute):
@@ -174,23 +177,23 @@ class Team(object):
 
 
 class Match(object):
-    def __init__(self, competition_instance, info, division=None):
+    def __init__(self, competition_instance, info, location, division=None):
         self.logger = logging.getLogger('{base}.{suffix}'.format(
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
-        self._populate(info, division)
+        self._populate(info, location, division)
         self.competitions = competition_instance
         self._calendar = None
         self._visiting_team = None
         self._visiting_team_goals = None
         self._home_team = None
         self._home_team_goals = None
-        self.event = FootyEvent(self.datetime, self.title, self.location)
+        self.event = FootyEvent(self.datetime, self.title, location)
 
-    def _populate(self, info, division):
+    def _populate(self, info, location, division):
         try:
             self._date = info.find('td', {'class': 'date1'}).text
             self._time = info.find('td', {'class': 'time'}).text
-            self.location = info.find('td', {'class': 'location'}).text
+            self.location = location
             self.title = info.find('td', {'class': 'match'}).text.encode('utf-8').strip()
             self.score = info.find('td', {'class': 'score'}).text
             self.referee = info.find('td', {'class': 'ref'}).text
@@ -262,11 +265,13 @@ class Match(object):
 
 class FootyEvent(object):
     def __new__(cls, match_date, match, location):
-        event = Event(duration=timedelta(hours=1))
+        event = Event()
         try:
             event.add('dtstart',
                       pytz.timezone('Europe/Amsterdam').localize(match_date))
             event.add('summary', match)
+            event.add('duration', timedelta(hours=1))
+            event.add('location', vText(location))
         except AttributeError:
             LOGGER.exception('{} not valid datetime'.format(match_date))
         return event
