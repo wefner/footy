@@ -22,9 +22,9 @@ class Footy(object):
         self.logger = logging.getLogger('{base}.{suffix}'.format(
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
         self._site = "http://www.footy.eu/"
-        self._headers = {'User-Agent': 'Mozilla/5.0'}
+        headers = {'User-Agent': 'Mozilla/5.0'}
         self.session = Session()
-        self.session.headers.update(self._headers)
+        self.session.headers.update(headers)
         self._front_page = None
         self._competitions = []
 
@@ -42,7 +42,7 @@ class Footy(object):
     def competitions(self):
         if not self._competitions:
             locations = self.__front_page.find_all('div',
-                                                 {'class': 'fusion-panel panel-default'})
+                                                   {'class': 'fusion-panel panel-default'})
             for location_data in locations:
                 location = location_data.find('div',
                                               {'class': 'fusion-toggle-heading'}
@@ -119,7 +119,7 @@ class Competition(object):
             competition_page = self.session.get(self.url)
             self._soup = Bfs(competition_page.text, "html.parser")
         return self._soup.find_all('table',
-                                    {'class': 'leaguemanager {}'.format(class_attribute)})
+                                   {'class': 'leaguemanager {}'.format(class_attribute)})
 
     @property
     def calendar(self):
@@ -180,6 +180,10 @@ class Match(object):
         self._populate(info, division)
         self.competitions = competition_instance
         self._calendar = None
+        self._visiting_team = None
+        self._visiting_team_goals = None
+        self._home_team = None
+        self._home_team_goals = None
         self.event = FootyEvent(self.datetime, self.title, self.location)
 
     def _populate(self, info, division):
@@ -198,11 +202,15 @@ class Match(object):
 
     @property
     def visiting_team(self):
-        return self._get_team(home_team=False)
+        if not self._visiting_team:
+            self._visiting_team = self._get_team(home_team=False)
+        return self._visiting_team
 
     @property
     def home_team(self):
-        return self._get_team()
+        if not self._home_team:
+            self._home_team = self._get_team()
+        return self._home_team
 
     def _get_team(self, home_team=True):
         home, visiting = self.title.split(' – ')
@@ -212,6 +220,26 @@ class Match(object):
         team = next((team for team in self.competitions.teams
                      if team.name == match), None)
         return team
+
+    def _get_team_goals(self, home_team_goals=True):
+        home, visiting = self.score.split(':')
+        score = home
+        if not home_team_goals:
+            score = visiting
+        return score
+
+    @property
+    def home_team_goals(self):
+        if not self._home_team_goals:
+            self._home_team_goals = self._get_team_goals()
+        return self._home_team_goals
+
+    @property
+    def visiting_team_goals(self):
+        if not self._visiting_team_goals:
+            self._visiting_team_goals = self._get_team_goals(
+                                                        home_team_goals=False)
+        return self._visiting_team_goals
 
     @property
     def calendar(self):
