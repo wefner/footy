@@ -143,6 +143,7 @@ class Team(object):
         self.url = competition_instance.url
         self._populate(info)
         self._calendar = None
+        self._division = None
 
     def _populate(self, info):
         try:
@@ -157,6 +158,12 @@ class Team(object):
             self.points = info.contents[18].text
         except KeyError:
             self.logger.exception("Got an exception while populating teams")
+
+    @property
+    def division(self):
+        if not self._division:
+            self._division = self.matches[-1].division
+        return self._division
 
     @property
     def matches(self):
@@ -224,7 +231,7 @@ class Match(object):
                      if team.name == match), None)
         return team
 
-    def _get_team_goals(self, home_team_goals=True):
+    def _get_match_goals(self, home_team_goals=True):
         home, visiting = self.score.split(':')
         score = home
         if not home_team_goals:
@@ -234,13 +241,13 @@ class Match(object):
     @property
     def home_team_goals(self):
         if not self._home_team_goals:
-            self._home_team_goals = self._get_team_goals()
+            self._home_team_goals = self._get_match_goals()
         return self._home_team_goals
 
     @property
     def visiting_team_goals(self):
         if not self._visiting_team_goals:
-            self._visiting_team_goals = self._get_team_goals(
+            self._visiting_team_goals = self._get_match_goals(
                                                         home_team_goals=False)
         return self._visiting_team_goals
 
@@ -254,13 +261,17 @@ class Match(object):
     @staticmethod
     def __string_to_datetime(date, time):
         locale.setlocale(locale.LC_TIME, 'nl_NL')
-        dutch_datetime = '{} {}'.format(date.capitalize(), time)
+        dutch_datetime = '{} {}'.format(date.capitalize(), time).strip()
+        datetime_object = None
         try:
             datetime_object = datetime.strptime(dutch_datetime,
                                                 '%B %d, %Y %I:%M %p')
-            return datetime_object
         except ValueError:
+            datetime_object = datetime.strptime(dutch_datetime,
+                                                '%B %d, %Y')
+        except AttributeError:
             LOGGER.exception("Couldn't parse this datetime.")
+        return datetime_object
 
 
 class FootyEvent(object):

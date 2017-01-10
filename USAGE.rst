@@ -54,7 +54,7 @@ Exporting calendar to a file
 ============================
 .. code-block:: python
 
-    with open('/home/footy/calendar.ics', 'w') as ics:
+    with open('calendar.ics', 'w') as ics:
         ics.writelines(team.calendar.to_ical())
 
 Get all attributes
@@ -72,6 +72,7 @@ Get all attributes
                 print '\t\t', 'Tie games {}'.format(team.tie_games)
                 print '\t\t', 'Lost games {}'.format(team.lost_games)
                 print '\t\t', 'Goals {}'.format(team.goals)
+                print '\t\t', 'Division {}'.format(team.division)
                 print '\t\t', 'Diff {}'.format(team.diff)
                 print '\t\t', 'Points {}'.format(team.points)
             print "Calendar for {}".format(competition.name)
