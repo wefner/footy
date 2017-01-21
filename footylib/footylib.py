@@ -83,6 +83,7 @@ class Competition(object):
         self._populate(location, url, name)
         self._teams = []
         self._matches = []
+        self._divisions = set()
         self._calendar = None
         self._soup = None
 
@@ -93,6 +94,13 @@ class Competition(object):
             self.name = name.encode('utf-8').strip()
         except KeyError:
             self._logger.exception("Got an exception in Competition")
+
+    @property
+    def divisions(self):
+        if not self._divisions:
+            for match in self.matches:
+                self._divisions.add(match.division)
+        return self._divisions
 
     @property
     def teams(self):
