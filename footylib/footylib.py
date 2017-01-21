@@ -232,10 +232,15 @@ class Match(object):
         return team
 
     def _get_match_goals(self, home_team_goals=True):
-        home, visiting = self.score.split(':')
-        score = home
+        try:
+            # Match not started (-:-)
+            home, visiting = self.score.split(':')
+        except ValueError:
+            # Played match (0 - 0)
+            home, visiting = self.score.split('-')
+        score = home.strip()
         if not home_team_goals:
-            score = visiting
+            score = visiting.strip()
         return score
 
     @property
