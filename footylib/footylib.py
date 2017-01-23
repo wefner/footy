@@ -27,6 +27,7 @@ class Footy(object):
         self.session.headers.update(headers)
         self._front_page = None
         self._competitions = []
+        self._urls = set()
 
     @property
     def __front_page(self):
@@ -50,11 +51,13 @@ class Footy(object):
                 for competition in location_data.find_all('a',
                                                           {'class': 'footycombut'}):
                     url = competition.attrs['href']
-                    name = competition.text
-                    self._competitions.append(Competition(self,
-                                                          location,
-                                                          url,
-                                                          name))
+                    if url not in self._urls:
+                        name = competition.text
+                        self._competitions.append(Competition(self,
+                                                              location,
+                                                              url,
+                                                              name))
+                        self._urls.add(url)
         return self._competitions
 
     def get_team(self, team_name):
@@ -83,6 +86,7 @@ class Competition(object):
         self._populate(location, url, name)
         self._teams = []
         self._matches = []
+        self._divisions = None
         self._calendar = None
         self._soup = None
 
@@ -93,6 +97,12 @@ class Competition(object):
             self.name = name.encode('utf-8').strip()
         except KeyError:
             self._logger.exception("Got an exception in Competition")
+
+    @property
+    def divisions(self):
+        if not self._divisions:
+            self._divisions = set([match.division for match in self.matches])
+        return self._divisions
 
     @property
     def teams(self):
@@ -162,7 +172,10 @@ class Team(object):
     @property
     def division(self):
         if not self._division:
-            self._division = self.matches[-1].division
+            try:
+                self._division = self.matches[-1].division
+            except IndexError:
+                self.logger.warn("Team {} doesn't have match".format(self.name))
         return self._division
 
     @property
