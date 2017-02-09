@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+# File: footylib.py
+
+"""footylib"""
 
 import pytz
 import logging
 import locale
 from requests import Session
-from footylibExceptions import *
 from bs4 import BeautifulSoup as Bfs
 from datetime import datetime, timedelta
 from icalendar import Calendar, Event, vText
@@ -18,6 +20,13 @@ LOGGER.addHandler(logging.NullHandler())
 
 
 class Footy(object):
+    """
+    Main Footy class
+
+    An object that can retrieve competitions from Footy.eu
+    or get a team directly.
+    """
+
     def __init__(self):
         self.logger = logging.getLogger('{base}.{suffix}'.format(
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
@@ -31,6 +40,11 @@ class Footy(object):
 
     @property
     def __front_page(self):
+        """
+        Gets footy.eu index and parses it in HTML for Beautiful Sop.
+
+        :return: footy front page as BFS object
+        """
         if not self._front_page:
             page = self.session.get(self._site)
             try:
@@ -41,6 +55,11 @@ class Footy(object):
 
     @property
     def competitions(self):
+        """
+        It retrieves location, URL and name for every competition found in the front page.
+
+        :return: list of Competition objects
+        """
         if not self._competitions:
             locations = self.__front_page.find_all('div',
                                                    {'class': 'fusion-panel panel-default'})
@@ -61,6 +80,12 @@ class Footy(object):
         return self._competitions
 
     def get_team(self, team_name):
+        """
+        Gets a team object from input name. It stops iterating when found.
+
+        :param team_name: string of team name to look for.
+        :return: Team object
+        """
         team = None
         for competition in self.competitions:
             team = next((team for team in competition.teams
@@ -70,6 +95,12 @@ class Footy(object):
         return team
 
     def search_team(self, team_name):
+        """
+        Looks for a team by a given name.
+
+        :param team_name: string of team name to look for.
+        :return: list of Team object(s)
+        """
         possible_teams = []
         for competition in self.competitions:
             for team in competition.teams:
@@ -79,6 +110,13 @@ class Footy(object):
 
 
 class Competition(object):
+    """
+    Gets competitions from location, url and name.
+
+    Object that has all attributes for a competition
+
+    """
+
     def __init__(self, footy_instance, location, url, name):
         self._logger = logging.getLogger('{base}.{suffix}'.format(
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
@@ -91,6 +129,9 @@ class Competition(object):
         self._soup = None
 
     def _populate(self, location, url, name):
+        """
+        Fills class variables that are passed from the main page
+        """
         try:
             self.location = location
             self.url = url
@@ -100,12 +141,22 @@ class Competition(object):
 
     @property
     def divisions(self):
+        """
+        Gets all divisions that are in a competition.
+        :return: set of unique divisions
+        """
         if not self._divisions:
             self._divisions = set([match.division for match in self.matches])
         return self._divisions
 
     @property
     def teams(self):
+        """
+        Gets all teams that are in a competition.
+
+        The teams are retrieved from each row in the standings table
+        :return: list of Team objects
+        """
         if not self._teams:
             standings = self._get_table('standingstable')
             for teams in standings:
@@ -115,6 +166,12 @@ class Competition(object):
 
     @property
     def matches(self):
+        """
+        Gets all matches that are in a competition
+
+        The matches are retrieved from all the Rounds
+        :return: list of Match objects
+        """
         if not self._matches:
             match_tables = self._get_table('matchtable')
             for match_table in match_tables:
@@ -128,6 +185,13 @@ class Competition(object):
         return self._matches
 
     def _get_table(self, class_attribute):
+        """
+        Method that parses the HTML from a 'leaguemanager' class in a table.
+
+        This is used for teams and matches
+        :param class_attribute: name of the table class attribute
+        :return: BFS object
+        """
         if not self._soup:
             competition_page = self.session.get(self.url)
             self._soup = Bfs(competition_page.text, "html.parser")
@@ -136,6 +200,11 @@ class Competition(object):
 
     @property
     def calendar(self):
+        """
+        Generates a RFC2445 (iCalendar) for all the matches
+        in a competition
+        :return: Calendar string
+        """
         if not self._calendar:
             self._calendar = Calendar()
             for team in self.teams:
@@ -145,6 +214,14 @@ class Competition(object):
 
 
 class Team(object):
+    """
+    Object that has all team attributes.
+
+    The information is sent from Competition where it
+    has the visibility of the Standings table. It parses
+    every row and it gets the data per each column.
+    """
+
     def __init__(self, competition_instance, info):
         self.logger = logging.getLogger('{base}.{suffix}'.format(
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
@@ -156,6 +233,11 @@ class Team(object):
         self._division = None
 
     def _populate(self, info):
+        """
+        It gets the row from standingstable for the requested Team
+        and then it gets the index accordingly to every column.
+        :param info: BFS object
+        """
         try:
             self.position = info.contents[1].text
             self.name = info.contents[5].text.encode('utf-8').strip()
@@ -171,24 +253,42 @@ class Team(object):
 
     @property
     def division(self):
+        """
+        Gets the division for a team from the latest Match in the division.
+        In order to get it, the Team has to be in a Match.
+        :return: division attribute
+        """
         if not self._division:
             try:
                 self._division = self.matches[-1].division
             except IndexError:
-                self.logger.warn("Team {} doesn't have match".format(self.name))
+                self.logger.warn("Can't get the division for {team}. "
+                                 "Doesn't have match".format(team=self.name))
         return self._division
 
     @property
     def matches(self):
+        """
+        Gets all matches for a Team
+        :return: list of Match objects
+        """
         return [match for match in self.competition.matches
                 if self.name in match.title]
 
     @property
     def events(self):
+        """
+        :return: list of Event objects for all the matches
+        that a Team is part of
+        """
         return [match.event for match in self.matches]
 
     @property
     def calendar(self):
+        """
+        Generates a RFC2445 (iCalendar) for all the Events that a Team has
+        :return: Calendar string
+        """
         if not self._calendar:
             self._calendar = Calendar()
             for event in self.events:
@@ -197,6 +297,13 @@ class Team(object):
 
 
 class Match(object):
+    """
+    Object that has all attributes for a given match
+
+    The information is sent from Competition where it
+    has the visibility of the Matches table. It parses
+    every row and it gets the data per each column.
+    """
     def __init__(self, competition_instance, info, location, division=None):
         self.logger = logging.getLogger('{base}.{suffix}'.format(
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
@@ -210,11 +317,16 @@ class Match(object):
         self.event = FootyEvent(self.datetime, self.title, location)
 
     def _populate(self, info, location, division):
+        """
+        It gets the row from matchtable for the requested Team
+        and then it gets the value accordingly to every column.
+        :param info: BFS object
+        """
         try:
             self._date = info.find('td', {'class': 'date1'}).text
             self._time = info.find('td', {'class': 'time'}).text
             self.location = location
-            self.title = info.find('td', {'class': 'match'}).text.encode('utf-8').strip()
+            self.title = self.normalize_title(info.find('td', {'class': 'match'}).text)
             self.score = info.find('td', {'class': 'score'}).text
             self.referee = info.find('td', {'class': 'ref'}).text
             self.motm = info.find('td', {'class': 'man'}).text
@@ -223,20 +335,45 @@ class Match(object):
         except KeyError:
             self.logger.exception("Got an exception on Matches.")
 
+    @staticmethod
+    def normalize_title(title):
+        """
+        Replaces \xe2\x80\x93 character to an ASCII dash
+        :param title: match title with Unicode character
+        :return: ASCII match title
+        """
+        encoded_title = title.encode('utf-8')
+        normalized_title = encoded_title.replace('–', '-').strip()
+        return normalized_title
+
     @property
     def visiting_team(self):
+        """
+        :return: Visiting team name in a match
+        """
         if not self._visiting_team:
             self._visiting_team = self._get_team(home_team=False)
         return self._visiting_team
 
     @property
     def home_team(self):
+        """
+        :return: Home team name in a match
+        """
         if not self._home_team:
             self._home_team = self._get_team()
         return self._home_team
 
     def _get_team(self, home_team=True):
-        home, visiting = self.title.split(' – ')
+        """
+        Method that gets the teams in a match and
+        it determines whether it is the home or visiting one.
+        - True: Home team
+        - False: Visiting team
+        :param home_team: Boolean
+        :return: home/visiting team name
+        """
+        home, visiting = self.title.split(' - ')
         match = home.strip()
         if not home_team:
             match = visiting.strip()
@@ -245,6 +382,15 @@ class Match(object):
         return team
 
     def _get_match_goals(self, home_team_goals=True):
+        """
+        Method that gets the score in a match and
+        it determines whether result is for the home or
+        visiting team.
+        - True: Home team goals
+        - False: Visiting team goals
+        :param home_team_goals: Boolean
+        :return: home/visiting goals for a team
+        """
         try:
             # Match not started (-:-)
             home, visiting = self.score.split(':')
@@ -258,12 +404,18 @@ class Match(object):
 
     @property
     def home_team_goals(self):
+        """
+        :return: home team goals in a match
+        """
         if not self._home_team_goals:
             self._home_team_goals = self._get_match_goals()
         return self._home_team_goals
 
     @property
     def visiting_team_goals(self):
+        """
+        :return: visiting team goals in a match
+        """
         if not self._visiting_team_goals:
             self._visiting_team_goals = self._get_match_goals(
                                                         home_team_goals=False)
@@ -271,6 +423,10 @@ class Match(object):
 
     @property
     def calendar(self):
+        """
+        Generates a RFC2445 (iCalendar) for a match
+        :return:
+        """
         if not self._calendar:
             self._calendar = Calendar()
             self._calendar.add_component(self.event)
@@ -278,6 +434,14 @@ class Match(object):
 
     @staticmethod
     def __string_to_datetime(date, time):
+        """
+        It joins a date in Dutch and a time for a match and it
+        converts it to a datetime object. It tries to convert
+        only the date if there is no time, which will default to 00:00
+        :param date: Dutch date (maart 7, 2017)
+        :param time: 24h time (18:30)
+        :return: datetime object
+        """
         locale.setlocale(locale.LC_TIME, 'nl_NL')
         dutch_datetime = '{} {}'.format(date.capitalize(), time).strip()
         datetime_object = None
@@ -293,7 +457,17 @@ class Match(object):
 
 
 class FootyEvent(object):
+    """
+    Object that creates an Event object for a match
+    """
     def __new__(cls, match_date, match, location):
+        """
+
+        :param match_date: datetime object
+        :param match: match title
+        :param location: location field for the match
+        :return: event object
+        """
         event = Event()
         try:
             event.add('dtstart',
