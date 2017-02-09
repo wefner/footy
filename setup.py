@@ -3,7 +3,7 @@
 
 from setuptools import setup
 
-readme = open('README.md').read()
+readme = open('README.rst').read()
 history = open('HISTORY.rst').read().replace('.. :changelog:', '')
 version = open('.VERSION').read()
 
@@ -31,8 +31,8 @@ setup(
     zip_safe=False,
     keywords='footylib',
     classifiers=[
-        'Development Status :: Perpetual Beta',
-        'License :: Apache-2.0',
+        'Development Status :: 4 - Beta',
+        'License :: OSI Approved :: Apache Software License',
         'Natural Language :: English',
         'Programming Language :: Python :: 2.7',
     ],
@@ -43,7 +43,7 @@ setup(
             'AUTHORS.rst',
             'CONTRIBUTING.rst',
             'HISTORY.rst',
-            'README.md',
+            'README.rst',
             'USAGE.rst',
         ]),
     ]
