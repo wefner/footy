@@ -10,4 +10,5 @@ Development Lead
 Contributors
 ------------
 
-None yet. Why not be the first?
+* Costas Tyfoxylos <https://github.com/costastf>
+

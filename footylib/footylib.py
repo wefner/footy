@@ -279,7 +279,7 @@ class Team(object):
     def events(self):
         """
         :return: list of Event objects for all the matches
-        that a Team is part of
+                 that a Team is part of
         """
         return [match.event for match in self.matches]
 
@@ -425,7 +425,7 @@ class Match(object):
     def calendar(self):
         """
         Generates a RFC2445 (iCalendar) for a match
-        :return:
+        :return: Calendar string
         """
         if not self._calendar:
             self._calendar = Calendar()
@@ -458,11 +458,11 @@ class Match(object):
 
 class FootyEvent(object):
     """
-    Object that creates an Event object for a match
+    Object that creates an Event for a match
     """
+
     def __new__(cls, match_date, match, location):
         """
-
         :param match_date: datetime object
         :param match: match title
         :param location: location field for the match

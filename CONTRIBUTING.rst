@@ -40,4 +40,5 @@ Ready to contribute? Here's how to set up `footylib` for local development.
     $ git commit -m "Your detailed description of your changes."
     $ git push origin name-of-your-bugfix-or-feature
 
-5. Submit a merge request through the Orahub page
+5. Submit a merge request through the Github page to develop branch
+
