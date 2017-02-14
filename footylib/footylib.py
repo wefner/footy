@@ -4,12 +4,11 @@
 
 """footylib"""
 
-import pytz
 import logging
-import locale
 from requests import Session
+from dateparser import parse
 from bs4 import BeautifulSoup as Bfs
-from datetime import datetime, timedelta
+from datetime import timedelta
 from icalendar import Calendar, Event, vText
 
 
@@ -326,7 +325,7 @@ class Match(object):
             self._date = info.find('td', {'class': 'date1'}).text
             self._time = info.find('td', {'class': 'time'}).text
             self.location = location
-            self.title = self.normalize_title(info.find('td', {'class': 'match'}).text)
+            self.title = self.__normalize_title(info.find('td', {'class': 'match'}).text)
             self.score = info.find('td', {'class': 'score'}).text
             self.referee = info.find('td', {'class': 'ref'}).text
             self.motm = info.find('td', {'class': 'man'}).text
@@ -336,7 +335,7 @@ class Match(object):
             self.logger.exception("Got an exception on Matches.")
 
     @staticmethod
-    def normalize_title(title):
+    def __normalize_title(title):
         """
         Replaces \xe2\x80\x93 character to an ASCII dash
         :param title: match title with Unicode character
@@ -435,22 +434,18 @@ class Match(object):
     @staticmethod
     def __string_to_datetime(date, time):
         """
-        It joins a date in Dutch and a time for a match and it
-        converts it to a datetime object. It tries to convert
-        only the date if there is no time, which will default to 00:00
+        It joins a Dutch date string and a time string for a match and it
+        converts it to a datetime object. 'Datetime parser' module
+        automatically detects datetime string whether it's incomplete or not.
         :param date: Dutch date (maart 7, 2017)
-        :param time: 24h time (18:30)
+        :param time: 12h time (6:30) + pm/am
         :return: datetime object
         """
-        locale.setlocale(locale.LC_TIME, 'nl_NL')
         dutch_datetime = '{} {}'.format(date.capitalize(), time).strip()
         datetime_object = None
         try:
-            datetime_object = datetime.strptime(dutch_datetime,
-                                                '%B %d, %Y %I:%M %p')
-        except ValueError:
-            datetime_object = datetime.strptime(dutch_datetime,
-                                                '%B %d, %Y')
+            datetime_object = parse(dutch_datetime,
+                                    settings={'TIMEZONE': 'Europe/Amsterdam'})
         except AttributeError:
             LOGGER.exception("Couldn't parse this datetime.")
         return datetime_object
@@ -470,8 +465,7 @@ class FootyEvent(object):
         """
         event = Event()
         try:
-            event.add('dtstart',
-                      pytz.timezone('Europe/Amsterdam').localize(match_date))
+            event.add('dtstart', match_date)
             event.add('summary', match)
             event.add('duration', timedelta(hours=1))
             event.add('location', vText(location))
