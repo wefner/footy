@@ -9,7 +9,7 @@ History
 * First packaged release
 
 
-2.0.7 (2017-07-14)
+2.0.7 (2017-02-14)
 ------------------
 
 * Reverting to modify locale to change datetime
