@@ -10,6 +10,7 @@ from dateparser import parse
 from bs4 import BeautifulSoup as Bfs
 from datetime import timedelta
 from icalendar import Calendar, Event, vText
+from collections import namedtuple
 
 
 LOGGER_BASENAME = '''footylib'''
@@ -197,34 +198,43 @@ class Team(object):
     has the visibility of the Standings table. It parses
     every row and it gets the data per each column.
     """
+    Row = namedtuple('Row', ['position',
+                             'name',
+                             'played_games',
+                             'won_games',
+                             'tie_games',
+                             'lost_games',
+                             'goals',
+                             'diff',
+                             'points'])
 
-    def __init__(self, competition_instance, info, division):
+    def __init__(self, competition_instance, team_details, division):
         self.logger = logging.getLogger('{base}.{suffix}'.format(
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
         self.session = competition_instance.session
         self.competition = competition_instance
-        self._populate(info)
+        self._populate(Team.Row(*[info.text for info in team_details]))
         self._calendar = None
         self.division = division
 
-    def _populate(self, info):
+    def _populate(self, team_details):
         """
         It gets the row from standingstable for the requested Team
         and then it gets the index accordingly to every column.
-        :param info: BFS object
+        :param team_details: BFS object
         """
         try:
-            self.position = info[0].text
-            self.name = info[1].text.encode('utf-8').strip()
-            self.played_games = info[2].text
-            self.won_games = info[3].text
-            self.tie_games = info[4].text
-            self.lost_games = info[5].text
-            self.goals = info[6].text
-            self.diff = info[7].text
-            self.points = info[8].text
-        except IndexError:
-            self.logger.exception("Got an exception while populating teams")
+            self.position = team_details.position
+            self.name = team_details.name.encode('utf-8').strip()
+            self.played_games = team_details.played_games
+            self.won_games = team_details.won_games
+            self.tie_games = team_details.tie_games
+            self.lost_games = team_details.lost_games
+            self.goals = team_details.goals
+            self.diff = team_details.diff
+            self.points = team_details.points
+        except AttributeError:
+            self.logger.exception("Got an exception while populating a team")
 
     @property
     def matches(self):
@@ -264,10 +274,17 @@ class Match(object):
     has the visibility of the Matches table. It parses
     every row and it gets the data per each column.
     """
-    def __init__(self, competition_instance, info):
+    Row = namedtuple('Row', ['datetime',
+                             'location',
+                             'title',
+                             'score',
+                             'referee',
+                             'motm'])
+
+    def __init__(self, competition_instance, match_details):
         self.logger = logging.getLogger('{base}.{suffix}'.format(
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
-        self._populate(info)
+        self._populate(Match.Row(*[info.text for info in match_details]))
         self.competitions = competition_instance
         self._calendar = None
         self._visiting_team = None
@@ -276,7 +293,7 @@ class Match(object):
         self._home_team_goals = None
         self.event = FootyEvent(self.datetime, self.title, self.location)
 
-    def _populate(self, info):
+    def _populate(self, match_details):
         """
         It gets the row from matchtable for the requested Team
         and then it gets the value accordingly to every column.
@@ -284,14 +301,14 @@ class Match(object):
         :param info: BFS object
         """
         try:
-            self.datetime = self.__string_to_datetime(info[0].text)
-            self.location = info[1].text
-            self.title = info[2].text
-            self.score = info[3].text
-            self.referee = info[4].text
-            self.motm = info[5].text
-        except KeyError:
-            self.logger.exception("Got an exception on Matches.")
+            self.datetime = self.__string_to_datetime(match_details.datetime)
+            self.location = match_details.location
+            self.title = match_details.title
+            self.score = match_details.score
+            self.referee = match_details.referee
+            self.motm = match_details.motm
+        except AttributeError:
+            self.logger.exception("Got an exception while populating a match")
 
     @property
     def visiting_team(self):

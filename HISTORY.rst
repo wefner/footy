@@ -22,3 +22,8 @@ History
 * Removing divisions as every competition has its own URL
 * Getting all Team and Matches attributes as list index
 * Explicit datetime format as it confused month/day in some cases
+
+3.0.1 (2017-09-08)
+------------------
+
+* Named tuples instead of lists when getting details for a Match/Team
