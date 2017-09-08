@@ -14,3 +14,11 @@ History
 
 * Reverting to modify locale to change datetime
 * Using dateparser module
+
+3.0.0 (2017-09-07)
+------------------
+
+* Getting new HTML tags for new WordPress theme
+* Removing divisions as every competition has its own URL
+* Getting all Team and Matches attributes as list index
+* Explicit datetime format as it confused month/day in some cases
