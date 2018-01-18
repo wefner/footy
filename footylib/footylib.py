@@ -82,7 +82,7 @@ class Footy(object):
         team = None
         for competition in self.competitions:
             team = next((team for team in competition.teams
-                         if team.name == team_name), None)
+                         if team.name.lower() == team_name.encode('utf-8').lower()), None)
             if team:
                 break
         return team
@@ -97,7 +97,7 @@ class Footy(object):
         possible_teams = []
         for competition in self.competitions:
             for team in competition.teams:
-                if team_name in team.name:
+                if team_name.encode('utf-8').lower() in team.name.lower():
                     possible_teams.append(team)
         return possible_teams
 
@@ -279,19 +279,20 @@ class Match(object):
                              'title',
                              'score',
                              'referee',
-                             'motm'])
+                             'motm',
+                             'info'])
 
     def __init__(self, competition_instance, match_details):
         self.logger = logging.getLogger('{base}.{suffix}'.format(
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
-        self._populate(Match.Row(*[info.text for info in match_details]))
+        self._populate(Match.Row(*[detail.text for detail in match_details]))
         self.competitions = competition_instance
         self._calendar = None
         self._visiting_team = None
         self._visiting_team_goals = None
         self._home_team = None
         self._home_team_goals = None
-        self.event = FootyEvent(self.datetime, self.title, self.location)
+        self.event = FootyEvent(self.datetime, self.title, self.location, self.info)
 
     def _populate(self, match_details):
         """
@@ -303,10 +304,11 @@ class Match(object):
         try:
             self.datetime = self.__string_to_datetime(match_details.datetime)
             self.location = match_details.location
-            self.title = match_details.title
+            self.title = match_details.title.encode('utf-8')
             self.score = match_details.score
             self.referee = match_details.referee
             self.motm = match_details.motm
+            self.info = match_details.info
         except AttributeError:
             self.logger.exception("Got an exception while populating a match")
 
@@ -418,19 +420,20 @@ class FootyEvent(object):
     Object that creates an Event for a match
     """
 
-    def __new__(cls, match_date, match, location):
+    def __new__(cls, match_date, match_title, location, match_info):
         """
         :param match_date: datetime object
-        :param match: match title
+        :param match_title: match title
         :param location: location field for the match
         :return: event object
         """
         event = Event()
         try:
             event.add('dtstart', match_date)
-            event.add('summary', match)
+            event.add('summary', match_title)
             event.add('duration', timedelta(minutes=50))
             event.add('location', vText(location))
+            event.add('resources', match_info)
         except AttributeError:
             LOGGER.exception('{} not valid datetime'.format(match_date))
         return event

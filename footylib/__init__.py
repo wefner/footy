@@ -7,3 +7,5 @@ from .footylibExceptions import *
 __author__ = 'Oriol Fabregas'
 
 assert __version__
+assert Footy
+assert FootyEvent
