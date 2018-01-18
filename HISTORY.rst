@@ -8,7 +8,6 @@ History
 
 * First packaged release
 
-
 2.0.7 (2017-02-14)
 ------------------
 
@@ -27,3 +26,10 @@ History
 ------------------
 
 * Named tuples instead of lists when getting details for a Match/Team
+
+3.0.2 (2018-01-15)
+------------------
+
+* Added new 'info' field for Match
+* Fix encodings
+* Fix string evaluation as case insensitive

@@ -47,8 +47,8 @@ Exporting calendar to a file
 ============================
 .. code-block:: python
 
-    with open('calendar.ics', 'w') as ics:
-        ics.writelines(team.calendar.to_ical())
+    with open('calendar.ics', 'wb') as ics:
+        ics.write(team.calendar.to_ical())
 
 Get all attributes
 ==================
