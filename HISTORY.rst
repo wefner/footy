@@ -33,3 +33,10 @@ History
 * Added new 'info' field for Match
 * Fix encodings
 * Fix string evaluation as case insensitive
+
+3.0.3 (2018-05-14)
+------------------
+
+* Added some logging
+* Made session private
+* Now match table ignores 'topscorer' so namedtuple is filled out correctly
