@@ -32,8 +32,8 @@ class Footy(object):
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
         self._site = 'https://www.footy.eu/schemas-standen/'
         headers = {'User-Agent': 'Mozilla/5.0'}
-        self.session = Session()
-        self.session.headers.update(headers)
+        self._session = Session()
+        self._session.headers.update(headers)
         self._front_page = None
         self._competitions = []
         self._urls = set()
@@ -46,7 +46,7 @@ class Footy(object):
         :return: footy front page as BFS object
         """
         if not self._front_page:
-            page = self.session.get(self._site)
+            page = self._session.get(self._site)
             try:
                 self._front_page = Bfs(page.text, 'html.parser')
             except Bfs.HTMLParser.HTMLParseError:
@@ -95,10 +95,12 @@ class Footy(object):
         :return: list of Team object(s)
         """
         possible_teams = []
+        self.logger.info("Searching for team {}".format(team_name))
         for competition in self.competitions:
             for team in competition.teams:
                 if team_name.encode('utf-8').lower() in team.name.lower():
                     possible_teams.append(team)
+        self.logger.info("Found {} team(s)".format(len(possible_teams)))
         return possible_teams
 
 
@@ -113,7 +115,7 @@ class Competition(object):
     def __init__(self, footy_instance, url):
         self._logger = logging.getLogger('{base}.{suffix}'.format(
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
-        self.session = footy_instance.session
+        self._session = footy_instance._session
         self._populate(url)
         self._teams = []
         self._matches = []
@@ -140,7 +142,7 @@ class Competition(object):
         if not self._teams:
             standings = self._get_table('banner')
             division = standings.h2.text
-            for teams in standings.find_all('tr'):
+            for teams in standings.find('table').find_all('tr'):
                 team = teams.find_all('td')
                 if team:
                     self._teams.append(Team(self, team, division))
@@ -171,7 +173,7 @@ class Competition(object):
         :return: BFS object
         """
         if not self._soup:
-            competition_page = self.session.get(self.url)
+            competition_page = self._session.get(self.url)
             self._soup = Bfs(competition_page.text, "html.parser")
         return self._soup.find('section', {'id': '{}'.format(section_attr)})
 
@@ -198,20 +200,20 @@ class Team(object):
     has the visibility of the Standings table. It parses
     every row and it gets the data per each column.
     """
-    Row = namedtuple('Row', ['position',
-                             'name',
-                             'played_games',
-                             'won_games',
-                             'tie_games',
-                             'lost_games',
-                             'goals',
-                             'diff',
-                             'points'])
+    Row = namedtuple('Team', ['position',
+                              'name',
+                              'played_games',
+                              'won_games',
+                              'tie_games',
+                              'lost_games',
+                              'goals',
+                              'diff',
+                              'points'])
 
     def __init__(self, competition_instance, team_details, division):
         self.logger = logging.getLogger('{base}.{suffix}'.format(
             base=LOGGER_BASENAME, suffix=self.__class__.__name__))
-        self.session = competition_instance.session
+        self._session = competition_instance._session
         self.competition = competition_instance
         self._populate(Team.Row(*[info.text for info in team_details]))
         self._calendar = None
@@ -274,13 +276,13 @@ class Match(object):
     has the visibility of the Matches table. It parses
     every row and it gets the data per each column.
     """
-    Row = namedtuple('Row', ['datetime',
-                             'location',
-                             'title',
-                             'score',
-                             'referee',
-                             'motm',
-                             'info'])
+    Row = namedtuple('Match', ['datetime',
+                               'location',
+                               'title',
+                               'score',
+                               'referee',
+                               'motm',
+                               'info'])
 
     def __init__(self, competition_instance, match_details):
         self.logger = logging.getLogger('{base}.{suffix}'.format(
