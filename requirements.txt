@@ -1,4 +1,4 @@
 beautifulsoup4==4.5.1
 dateparser==0.5.1
 icalendar==3.11.1
-requests==2.11.1
+requests==2.20.0
